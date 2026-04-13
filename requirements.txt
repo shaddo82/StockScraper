@@ -3,3 +3,4 @@ uvicorn
 yfinance
 python-multipart
 pytest
+pydantic

@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from pydantic import BaseModel
 import yfinance as yf
 from typing import List
@@ -58,6 +58,14 @@ def is_valid_symbol(symbol: str) -> bool:
         return False
 
 
+# ============ ROOT ROUTE ============
+@app.get("/")
+async def root():
+    """메인 페이지 (index.html 반환)"""
+    return FileResponse("static/index.html")
+
+
+# ============ API ROUTES ============
 @app.get("/api/stocks")
 async def get_stocks():
     """주식 데이터 조회 API"""

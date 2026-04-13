@@ -19,7 +19,7 @@
         }
 
         .container {
-            max-width: 1000px;
+            max-width: 1200px;
             margin: 0 auto;
         }
 
@@ -41,9 +41,197 @@
             margin-top: 20px;
         }
 
+        .timestamp {
+            text-align: center;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.9em;
+            margin-top: 10px;
+        }
+
+        .stock-control-panel {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .panel-title {
+            font-size: 1.3em;
+            color: #333;
+            margin-bottom: 20px;
+            font-weight: bold;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .control-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+
+        .add-stock-section h3,
+        .stock-list-section h3 {
+            color: #495057;
+            margin-bottom: 15px;
+            font-size: 1.1em;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        #stock-input {
+            flex: 1;
+            padding: 12px 15px;
+            border: 2px solid #dee2e6;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        #stock-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        #stock-input::placeholder {
+            color: #adb5bd;
+        }
+
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-add {
+            background: #28a745;
+            color: white;
+            min-width: 100px;
+        }
+
+        .btn-add:hover:not(:disabled) {
+            background: #218838;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(40, 167, 69, 0.3);
+        }
+
+        .btn-add:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .btn-refresh {
+            background: white;
+            color: #667eea;
+            border: 2px solid #667eea;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 1em;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        .btn-refresh:hover {
+            background: #f0f0f0;
+            transform: scale(1.05);
+        }
+
+        .btn-remove {
+            background: #dc3545;
+            color: white;
+            padding: 6px 12px;
+            font-size: 12px;
+            min-width: auto;
+        }
+
+        .btn-remove:hover {
+            background: #c82333;
+        }
+
+        .message {
+            min-height: 20px;
+            font-size: 13px;
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 4px;
+            display: none;
+        }
+
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            display: block;
+        }
+
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            display: block;
+        }
+
+        .message.loading {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+            display: block;
+        }
+
+        .info-text {
+            font-size: 12px;
+            color: #6c757d;
+            margin: 10px 0 0 0;
+        }
+
+        .stock-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            min-height: 100px;
+            padding: 15px;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            align-content: flex-start;
+        }
+
+        .stock-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #e7f3ff;
+            border: 1px solid #667eea;
+            border-radius: 20px;
+            padding: 8px 12px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        .stock-list-empty {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #adb5bd;
+            font-style: italic;
+        }
+
         .stock-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
             gap: 20px;
             margin-bottom: 30px;
         }
@@ -80,38 +268,13 @@
             margin-bottom: 8px;
         }
 
-        .change.positive {
-            color: #10b981;
-        }
-
-        .change.negative {
-            color: #ef4444;
-        }
-
-        .change.neutral {
-            color: #6b7280;
-        }
+        .change.positive { color: #10b981; }
+        .change.negative { color: #ef4444; }
+        .change.neutral { color: #6b7280; }
 
         .previous-price {
             font-size: 0.9em;
             color: #999;
-        }
-
-        .btn-refresh {
-            background: white;
-            color: #667eea;
-            border: none;
-            padding: 12px 30px;
-            border-radius: 8px;
-            font-size: 1em;
-            cursor: pointer;
-            font-weight: bold;
-            transition: all 0.3s ease;
-        }
-
-        .btn-refresh:hover {
-            background: #f0f0f0;
-            transform: scale(1.05);
         }
 
         .loading {
@@ -120,11 +283,14 @@
             font-size: 1.2em;
         }
 
-        .timestamp {
-            text-align: center;
-            color: rgba(255, 255, 255, 0.8);
-            font-size: 0.9em;
-            margin-top: 10px;
+        @media (max-width: 768px) {
+            h1 { font-size: 1.8em; }
+            .control-content { grid-template-columns: 1fr; gap: 20px; }
+            .input-group { flex-direction: column; }
+            .btn-add { width: 100%; }
+            .stock-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+            .header-controls { flex-direction: column; }
+            .btn-refresh { width: 100%; }
         }
     </style>
 </head>
@@ -132,18 +298,163 @@
     <div class="container">
         <header>
             <h1>📈 Stock Dashboard</h1>
-            <p>미국 주식 실시간 모니터링</p>
+            <p style="color: white; margin-bottom: 20px;">미국 주식 실시간 모니터링</p>
             <div class="header-controls">
                 <button class="btn-refresh" onclick="loadStocks()">🔄 새로고침</button>
             </div>
             <div class="timestamp" id="timestamp"></div>
         </header>
 
+        <div class="stock-control-panel">
+            <div class="panel-title">📋 종목 관리</div>
+            <div class="control-content">
+                <div class="add-stock-section">
+                    <h3>새 종목 추가</h3>
+                    <div class="input-group">
+                        <input
+                            type="text"
+                            id="stock-input"
+                            placeholder="종목 코드 입력 (예: TSLA, NVDA)"
+                            maxlength="5"
+                        >
+                        <button id="add-btn" class="btn btn-add">추가</button>
+                    </div>
+                    <div id="add-message" class="message"></div>
+                    <p class="info-text">※ 최대 20개까지 추가 가능합니다</p>
+                </div>
+
+                <div class="stock-list-section">
+                    <h3>현재 종목 (<span id="stock-count">0</span>/<span id="max-stocks">20</span>)</h3>
+                    <div id="stock-list" class="stock-list"></div>
+                </div>
+            </div>
+        </div>
+
         <div id="loading" class="loading" style="display: none;">로딩 중...</div>
         <div id="stocks" class="stock-grid"></div>
     </div>
 
     <script>
+        const API_BASE = "/api";
+        const MAX_STOCKS = 20;
+
+        const stockInput = document.getElementById("stock-input");
+        const addBtn = document.getElementById("add-btn");
+        const addMessage = document.getElementById("add-message");
+        const stockList = document.getElementById("stock-list");
+        const stockCount = document.getElementById("stock-count");
+        const maxStocks = document.getElementById("max-stocks");
+
+        maxStocks.textContent = MAX_STOCKS;
+
+        function showMessage(message, type = "info") {
+            addMessage.textContent = message;
+            addMessage.className = `message ${type}`;
+            setTimeout(() => {
+                addMessage.textContent = "";
+                addMessage.className = "message";
+            }, 3000);
+        }
+
+        function setLoading(isLoading) {
+            addBtn.disabled = isLoading;
+            addBtn.textContent = isLoading ? "추가 중..." : "추가";
+        }
+
+        async function fetchStockList() {
+            try {
+                const response = await fetch(`${API_BASE}/stocks/list`);
+                if (!response.ok) throw new Error("리스트 조회 실패");
+                const data = await response.json();
+                return data.symbols || [];
+            } catch (error) {
+                console.error(error);
+                return [];
+            }
+        }
+
+        async function addStockAPI(symbol) {
+            try {
+                const response = await fetch(`${API_BASE}/stocks/add`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ symbol })
+                });
+                const data = await response.json();
+                return response.ok
+                    ? { success: true, message: data.message }
+                    : { success: false, message: data.detail || "종목 추가 실패" };
+            } catch (error) {
+                return { success: false, message: "서버 오류가 발생했습니다" };
+            }
+        }
+
+        async function removeStockAPI(symbol) {
+            try {
+                const response = await fetch(`${API_BASE}/stocks/remove/${symbol}`, {
+                    method: "DELETE"
+                });
+                const data = await response.json();
+                return response.ok
+                    ? { success: true, message: data.message }
+                    : { success: false, message: data.detail || "종목 삭제 실패" };
+            } catch (error) {
+                return { success: false, message: "서버 오류가 발생했습니다" };
+            }
+        }
+
+        async function updateStockListUI() {
+            const symbols = await fetchStockList();
+            stockCount.textContent = symbols.length;
+
+            if (symbols.length === 0) {
+                stockList.innerHTML = '<div class="stock-list-empty">추가된 종목이 없습니다</div>';
+                return;
+            }
+
+            stockList.innerHTML = symbols.map(symbol => `
+                <div class="stock-item">
+                    <span>${symbol}</span>
+                    <button class="btn btn-remove" onclick="handleRemoveStock('${symbol}')">×</button>
+                </div>
+            `).join("");
+        }
+
+        addBtn.addEventListener("click", async () => {
+            const symbol = stockInput.value.trim().toUpperCase();
+            if (!symbol) {
+                showMessage("종목 코드를 입력하세요", "error");
+                return;
+            }
+            setLoading(true);
+            const result = await addStockAPI(symbol);
+            if (result.success) {
+                showMessage(result.message, "success");
+                stockInput.value = "";
+                await updateStockListUI();
+                await loadStocks();
+            } else {
+                showMessage(result.message, "error");
+            }
+            setLoading(false);
+        });
+
+        async function handleRemoveStock(symbol) {
+            if (!confirm(`'${symbol}' 종목을 삭제하시겠습니까?`)) return;
+            const result = await removeStockAPI(symbol);
+            if (result.success) {
+                showMessage(result.message, "success");
+                await updateStockListUI();
+                await loadStocks();
+            } else {
+                showMessage(result.message, "error");
+            }
+        }
+
+        stockInput.addEventListener("keypress", (e) => {
+            if (e.key === "Enter") addBtn.click();
+        });
+
         async function loadStocks() {
             const stocksDiv = document.getElementById("stocks");
             const loadingDiv = document.getElementById("loading");
@@ -153,37 +464,36 @@
             stocksDiv.innerHTML = "";
 
             try {
-                const response = await fetch("/api/stocks");
+                const response = await fetch(`${API_BASE}/stocks`);
                 const data = await response.json();
 
                 loadingDiv.style.display = "none";
+                timestampDiv.textContent = `마지막 업데이트: ${new Date().toLocaleString('ko-KR')}`;
 
-                // 타임스탬프 업데이트
-                const updateTime = new Date(data.timestamp).toLocaleString('ko-KR');
-                timestampDiv.textContent = `마지막 업데이트: ${updateTime}`;
+                if (!data.stocks || data.stocks.length === 0) {
+                    stocksDiv.innerHTML = '<p style="grid-column: 1 / -1; text-align: center; color: white; padding: 40px;">추가된 종목이 없습니다</p>';
+                    return;
+                }
 
-                // 주식 카드 생성
                 data.stocks.forEach(stock => {
                     const card = document.createElement("div");
                     card.className = "stock-card";
 
-                    // 변동률에 따른 클래스 결정
                     let changeClass = "neutral";
                     let changeEmoji = "➡️";
-
-                    if (stock.change > 0) {
+                    if (stock.change_percent > 0) {
                         changeClass = "positive";
                         changeEmoji = "📈";
-                    } else if (stock.change < 0) {
+                    } else if (stock.change_percent < 0) {
                         changeClass = "negative";
                         changeEmoji = "📉";
                     }
 
                     card.innerHTML = `
-                        <div class="ticker">${stock.ticker}</div>
-                        <div class="price">$${stock.price.toFixed(2)}</div>
+                        <div class="ticker">${stock.symbol}</div>
+                        <div class="price">$${stock.current_price.toFixed(2)}</div>
                         <div class="change ${changeClass}">
-                            ${changeEmoji} ${stock.change > 0 ? '+' : ''}${stock.change.toFixed(2)}%
+                            ${changeEmoji} ${stock.change_percent > 0 ? '+' : ''}${stock.change_percent.toFixed(2)}%
                         </div>
                         <div class="previous-price">전일: $${stock.previous_price.toFixed(2)}</div>
                     `;
@@ -191,12 +501,14 @@
                 });
             } catch (error) {
                 loadingDiv.style.display = "none";
-                stocksDiv.innerHTML = `<p style="color: red;">오류: ${error.message}</p>`;
+                stocksDiv.innerHTML = `<p style="grid-column: 1 / -1; color: red;">오류: ${error.message}</p>`;
             }
         }
 
-        // 페이지 로드 시 자동 실행
-        loadStocks();
+        document.addEventListener("DOMContentLoaded", async () => {
+            await updateStockListUI();
+            await loadStocks();
+        });
     </script>
 </body>
 </html>

@@ -34,6 +34,13 @@
             margin-bottom: 10px;
         }
 
+        .header-controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
         .stock-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -64,11 +71,30 @@
             font-size: 2em;
             color: #667eea;
             margin-bottom: 5px;
+            font-weight: bold;
         }
 
         .change {
-            font-size: 1em;
-            color: #666;
+            font-size: 1.2em;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .change.positive {
+            color: #10b981;
+        }
+
+        .change.negative {
+            color: #ef4444;
+        }
+
+        .change.neutral {
+            color: #6b7280;
+        }
+
+        .previous-price {
+            font-size: 0.9em;
+            color: #999;
         }
 
         .btn-refresh {
@@ -93,6 +119,13 @@
             color: white;
             font-size: 1.2em;
         }
+
+        .timestamp {
+            text-align: center;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.9em;
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
@@ -100,7 +133,10 @@
         <header>
             <h1>📈 Stock Dashboard</h1>
             <p>미국 주식 실시간 모니터링</p>
-            <button class="btn-refresh" onclick="loadStocks()">🔄 새로고침</button>
+            <div class="header-controls">
+                <button class="btn-refresh" onclick="loadStocks()">🔄 새로고침</button>
+            </div>
+            <div class="timestamp" id="timestamp"></div>
         </header>
 
         <div id="loading" class="loading" style="display: none;">로딩 중...</div>
@@ -111,6 +147,7 @@
         async function loadStocks() {
             const stocksDiv = document.getElementById("stocks");
             const loadingDiv = document.getElementById("loading");
+            const timestampDiv = document.getElementById("timestamp");
 
             loadingDiv.style.display = "block";
             stocksDiv.innerHTML = "";
@@ -121,13 +158,34 @@
 
                 loadingDiv.style.display = "none";
 
+                // 타임스탬프 업데이트
+                const updateTime = new Date(data.timestamp).toLocaleString('ko-KR');
+                timestampDiv.textContent = `마지막 업데이트: ${updateTime}`;
+
+                // 주식 카드 생성
                 data.stocks.forEach(stock => {
                     const card = document.createElement("div");
                     card.className = "stock-card";
+
+                    // 변동률에 따른 클래스 결정
+                    let changeClass = "neutral";
+                    let changeEmoji = "➡️";
+
+                    if (stock.change > 0) {
+                        changeClass = "positive";
+                        changeEmoji = "📈";
+                    } else if (stock.change < 0) {
+                        changeClass = "negative";
+                        changeEmoji = "📉";
+                    }
+
                     card.innerHTML = `
                         <div class="ticker">${stock.ticker}</div>
                         <div class="price">$${stock.price.toFixed(2)}</div>
-                        <div class="change">변동률: ${stock.change}%</div>
+                        <div class="change ${changeClass}">
+                            ${changeEmoji} ${stock.change > 0 ? '+' : ''}${stock.change.toFixed(2)}%
+                        </div>
+                        <div class="previous-price">전일: $${stock.previous_price.toFixed(2)}</div>
                     `;
                     stocksDiv.appendChild(card);
                 });

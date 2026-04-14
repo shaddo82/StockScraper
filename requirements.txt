@@ -4,3 +4,4 @@ yfinance
 python-multipart
 pytest
 pydantic
+httpx

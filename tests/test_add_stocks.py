@@ -199,7 +199,7 @@ class TestAddStock:
         """유효하지 않은 종목 추가"""
         mock_valid.return_value = False
 
-        response = client.post("/api/stocks/add", json={"symbol": "INVALID"})
+        response = client.post("/api/stocks/add", json={"symbol": "FAKE"})
         assert response.status_code == 400, "400 Bad Request 반환해야 함"
         assert "찾을 수 없습니다" in response.json()["detail"], "에러 메시지가 있어야 함"
 
@@ -234,9 +234,10 @@ class TestAddStock:
         """최대 종목 개수 초과"""
         mock_valid.return_value = True
 
-        # MAX_STOCKS 개까지 추가
-        for i in range(MAX_STOCKS):
-            symbol = f"TICK{i:02d}"
+        # 기본 종목을 포함해 MAX_STOCKS 개까지 채우기
+        current_count = len(load_stocks())
+        for i in range(MAX_STOCKS - current_count):
+            symbol = f"T{i:04d}"
             client.post("/api/stocks/add", json={"symbol": symbol})
 
         # 초과 추가

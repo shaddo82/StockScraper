@@ -230,6 +230,35 @@ class TestAddStock:
         assert response.json()["symbol"] == "NVDA", "대문자로 변환되어야 함"
 
     @patch("main.is_valid_symbol")
+    def test_add_korean_company_name(self, mock_valid, reset_stocks):
+        """한글 회사명으로 종목 추가"""
+        mock_valid.return_value = True
+        save_stocks(["AAPL", "GOOGL", "MSFT"])
+
+        response = client.post("/api/stocks/add", json={"symbol": "테슬라"})
+        assert response.status_code == 200, "200 OK 반환해야 함"
+        assert response.json()["symbol"] == "TSLA", "테슬라는 TSLA로 변환되어야 함"
+
+    @patch("main.is_valid_symbol")
+    def test_add_korean_company_name_with_space(self, mock_valid, reset_stocks):
+        """띄어쓰기 포함 한글 회사명 처리"""
+        mock_valid.return_value = True
+        save_stocks(["AAPL", "GOOGL"])
+
+        response = client.post("/api/stocks/add", json={"symbol": "마이크로 소프트"})
+        assert response.status_code == 200, "200 OK 반환해야 함"
+        assert response.json()["symbol"] == "MSFT", "마이크로 소프트는 MSFT로 변환되어야 함"
+
+    @patch("main.is_valid_symbol")
+    def test_add_korean_company_name_duplicate(self, mock_valid, reset_stocks):
+        """기본 종목과 매핑되는 한글 회사명 중복 처리"""
+        mock_valid.return_value = True
+
+        response = client.post("/api/stocks/add", json={"symbol": "애플"})
+        assert response.status_code == 400, "기본 보유 종목은 중복으로 거부되어야 함"
+        assert "이미 추가" in response.json()["detail"], "중복 메시지가 있어야 함"
+
+    @patch("main.is_valid_symbol")
     def test_add_max_stocks_exceeded(self, mock_valid, reset_stocks):
         """최대 종목 개수 초과"""
         mock_valid.return_value = True

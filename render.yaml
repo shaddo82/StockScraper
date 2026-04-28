@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: stockscraper
+    env: docker
+    plan: free
+    region: oregon
+    branch: main
+    autoDeploy: true
+    healthCheckPath: /api/health
+    dockerContext: .
+    dockerfilePath: ./Dockerfile

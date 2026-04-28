@@ -1,7 +1,7 @@
-fastapi
-uvicorn
-yfinance
-python-multipart
-pytest
-pydantic
-httpx
+fastapi==0.135.3
+uvicorn==0.44.0
+yfinance==1.2.1
+python-multipart==0.0.26
+pytest==9.0.3
+pydantic==2.12.5
+httpx==0.28.1

@@ -315,8 +315,8 @@
                         <input
                             type="text"
                             id="stock-input"
-                            placeholder="종목 코드 입력 (예: TSLA, NVDA)"
-                            maxlength="5"
+                            placeholder="종목 코드/회사명 입력 (예: TSLA, 테슬라)"
+                            maxlength="20"
                         >
                         <button id="add-btn" class="btn btn-add">추가</button>
                     </div>
@@ -338,6 +338,15 @@
     <script>
         const API_BASE = "/api";
         const MAX_STOCKS = 20;
+        const STOCK_NAME_MAP = {
+            AAPL: "애플",
+            MSFT: "마이크로소프트",
+            GOOGL: "알파벳",
+            TSLA: "테슬라",
+            NVDA: "엔비디아",
+            META: "메타",
+            AMZN: "아마존"
+        };
 
         const stockInput = document.getElementById("stock-input");
         const addBtn = document.getElementById("add-btn");
@@ -347,6 +356,11 @@
         const maxStocks = document.getElementById("max-stocks");
 
         maxStocks.textContent = MAX_STOCKS;
+
+        function formatStockLabel(symbol) {
+            const koreanName = STOCK_NAME_MAP[symbol];
+            return koreanName ? `${koreanName}(${symbol})` : symbol;
+        }
 
         function showMessage(message, type = "info") {
             addMessage.textContent = message;
@@ -415,7 +429,7 @@
 
             stockList.innerHTML = symbols.map(symbol => `
                 <div class="stock-item">
-                    <span>${symbol}</span>
+                    <span>${formatStockLabel(symbol)}</span>
                     <button class="btn btn-remove" onclick="handleRemoveStock('${symbol}')">×</button>
                 </div>
             `).join("");
@@ -441,7 +455,7 @@
         });
 
         async function handleRemoveStock(symbol) {
-            if (!confirm(`'${symbol}' 종목을 삭제하시겠습니까?`)) return;
+            if (!confirm(`'${formatStockLabel(symbol)}' 종목을 삭제하시겠습니까?`)) return;
             const result = await removeStockAPI(symbol);
             if (result.success) {
                 showMessage(result.message, "success");
@@ -491,7 +505,7 @@
                     }
 
                     card.innerHTML = `
-                        <div class="ticker">${stock.symbol}</div>
+                        <div class="ticker">${formatStockLabel(stock.symbol)}</div>
                         <div class="price">$${stock.current_price.toFixed(2)}</div>
                         <div class="change ${changeClass}">
                             ${changeEmoji} ${stock.change_percent > 0 ? '+' : ''}${stock.change_percent.toFixed(2)}%

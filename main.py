@@ -21,6 +21,19 @@ DEFAULT_STOCKS = ["AAPL", "GOOGL", "MSFT"]
 # 최대 종목 개수
 MAX_STOCKS = 20
 
+# 한글/별칭 회사명 -> 티커 매핑
+COMPANY_NAME_TO_SYMBOL = {
+    "테슬라": "TSLA",
+    "마이크로소프트": "MSFT",
+    "마이크로 소프트": "MSFT",
+    "애플": "AAPL",
+    "구글": "GOOGL",
+    "알파벳": "GOOGL",
+    "엔비디아": "NVDA",
+    "메타": "META",
+    "아마존": "AMZN",
+}
+
 
 class StockRequest(BaseModel):
     """종목 추가 요청 모델"""
@@ -56,6 +69,22 @@ def is_valid_symbol(symbol: str) -> bool:
         return len(data) > 0
     except Exception:
         return False
+
+
+def normalize_symbol_input(raw_symbol: str) -> str:
+    """사용자 입력(티커/회사명)을 표준 티커로 변환"""
+    cleaned = raw_symbol.strip()
+    if not cleaned:
+        return ""
+
+    # 공백/대소문자 영향을 줄인 키로 회사명 별칭 처리
+    alias_key = cleaned.replace(" ", "").lower()
+    for company_name, symbol in COMPANY_NAME_TO_SYMBOL.items():
+        normalized_name = company_name.replace(" ", "").lower()
+        if alias_key == normalized_name:
+            return symbol
+
+    return cleaned.upper()
 
 
 # ============ ROOT ROUTE ============
@@ -129,7 +158,7 @@ async def get_stock_list():
 @app.post("/api/stocks/add")
 async def add_stock(request: StockRequest):
     """종목 추가 API"""
-    symbol = request.symbol.upper().strip()
+    symbol = normalize_symbol_input(request.symbol)
 
     # 종목 코드 유효성 확인
     if not symbol or len(symbol) > 5:

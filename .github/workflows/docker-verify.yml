@@ -1,0 +1,31 @@
+name: Docker Verify
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  docker-build-and-healthcheck:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t stockscraper:ci .
+
+      - name: Run container
+        run: docker run -d --name stockscraper-test -p 10000:10000 stockscraper:ci
+
+      - name: Wait for app startup
+        run: sleep 8
+
+      - name: Health check
+        run: curl -f http://localhost:10000/api/health
+
+      - name: Stop container
+        if: always()
+        run: docker rm -f stockscraper-test

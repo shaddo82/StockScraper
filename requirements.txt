@@ -3,5 +3,6 @@ uvicorn==0.44.0
 yfinance==1.2.1
 python-multipart==0.0.26
 pytest==9.0.3
+pytest-cov==6.0.0
 pydantic==2.12.5
 httpx==0.28.1

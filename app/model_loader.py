@@ -10,8 +10,11 @@ from app import config
 try:
     import mlflow
     import mlflow.sklearn
-except Exception:  # pragma: no cover - optional dependency
+except Exception as exc:  # pragma: no cover - optional dependency
     mlflow = None
+    _mlflow_import_error = exc
+else:
+    _mlflow_import_error = None
 
 
 _model: Any = None
@@ -20,7 +23,7 @@ _model_info: Optional[dict[str, Any]] = None
 
 def _load_from_mlflow() -> Any:
     if mlflow is None:
-        raise RuntimeError("mlflow is not installed")
+        raise RuntimeError(f"mlflow import failed: {_mlflow_import_error}")
 
     mlflow.set_tracking_uri(config.MLFLOW_TRACKING_URI)
     return mlflow.sklearn.load_model(config.MODEL_URI)
@@ -81,7 +84,7 @@ def get_model_info() -> dict[str, Any]:
     """Return the current cached model metadata."""
     global _model_info
 
-    if _model_info is None:
+    if _model_info is None or _model_info.get("source") == "unavailable":
         try:
             load_model()
         except Exception:

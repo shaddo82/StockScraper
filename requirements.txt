@@ -10,4 +10,4 @@ joblib==1.5.3
 numpy==1.26.4
 pandas==3.0.2
 scikit-learn==1.4.2
-mlflow
+mlflow==2.22.0

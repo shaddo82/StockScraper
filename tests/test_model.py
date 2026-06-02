@@ -31,6 +31,7 @@ def test_train_and_load_model_roundtrip(tmp_path, monkeypatch):
     model_path = artifact_dir / "stock_direction_model.joblib"
     monkeypatch.setattr(config, "ARTIFACT_DIR", artifact_dir)
     monkeypatch.setattr(config, "MODEL_PATH", model_path)
+    monkeypatch.setenv("DISABLE_MLFLOW", "1")
 
     import app.model_loader as model_loader
 

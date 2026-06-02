@@ -64,6 +64,7 @@ def promote_best_model(
     challenger_alias: str = "challenger",
     metric_name: str = "f1",
     min_improvement: float = 0.0,
+    promote_champion: bool = False,
 ) -> PromotionResult:
     if mlflow is None or MlflowClient is None:
         raise RuntimeError("mlflow is not installed")
@@ -139,23 +140,23 @@ def promote_best_model(
             challenger_score=None,
         )
 
-    should_promote = (
-        champion_score is None
-        or challenger_score >= champion_score + min_improvement
-    )
-
     client.set_registered_model_alias(
         model_name,
         challenger_alias,
         challenger_version.version,
     )
 
-    if should_promote:
+    should_promote = False
+    if promote_champion and (
+        champion_score is None
+        or challenger_score >= champion_score + min_improvement
+    ):
         client.set_registered_model_alias(
             model_name,
             champion_alias,
             challenger_version.version,
         )
+        should_promote = True
 
     return PromotionResult(
         promoted=should_promote,
@@ -181,6 +182,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--metric", default="f1")
     parser.add_argument("--min-improvement", type=float, default=0.0)
+    parser.add_argument(
+        "--promote-champion",
+        action="store_true",
+        help="Also move champion when the challenger is better",
+    )
     return parser.parse_args()
 
 
@@ -192,6 +198,7 @@ def main() -> None:
         challenger_alias=args.challenger_alias,
         metric_name=args.metric,
         min_improvement=args.min_improvement,
+        promote_champion=args.promote_champion,
     )
     print(asdict(result))
 

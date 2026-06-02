@@ -44,6 +44,23 @@ COMPANY_NAME_TO_SYMBOL = {
 }
 
 
+def build_unavailable_stock(symbol: str, error: str) -> dict:
+    return {
+        "symbol": symbol,
+        "current_price": None,
+        "previous_price": None,
+        "change_percent": None,
+        "prediction": {
+            "symbol": symbol,
+            "prediction": None,
+            "direction": "예측 불가",
+            "confidence": None,
+            "error": error,
+        },
+        "error": error,
+    }
+
+
 class StockRequest(BaseModel):
     """종목 추가 요청 모델"""
     symbol: str
@@ -163,9 +180,15 @@ async def get_stocks():
         for symbol in symbols:
             try:
                 ticker = yf.Ticker(symbol)
-                data = ticker.history(period="2d")
+                data = ticker.history(period="5d")
 
                 if len(data) < 2:
+                    stocks.append(
+                        build_unavailable_stock(
+                            symbol,
+                            "가격 데이터가 부족합니다",
+                        )
+                    )
                     continue
 
                 current_price = data["Close"].iloc[-1]
@@ -184,7 +207,7 @@ async def get_stocks():
 
             except Exception as e:
                 print(f"⚠️  {symbol} 데이터 수집 실패: {e}")
-                continue
+                stocks.append(build_unavailable_stock(symbol, str(e)))
 
         return {
             "stocks": stocks,

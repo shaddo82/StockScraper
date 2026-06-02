@@ -262,6 +262,11 @@
             font-weight: bold;
         }
 
+        .price.unavailable {
+            color: #9ca3af;
+            font-size: 1.5em;
+        }
+
         .change {
             font-size: 1.2em;
             font-weight: 600;
@@ -596,7 +601,9 @@
 
                     let changeClass = "neutral";
                     let changeEmoji = "➡️";
-                    if (stock.change_percent > 0) {
+                    if (stock.change_percent === null || stock.change_percent === undefined) {
+                        changeEmoji = "데이터 없음";
+                    } else if (stock.change_percent > 0) {
                         changeClass = "positive";
                         changeEmoji = "📈";
                     } else if (stock.change_percent < 0) {
@@ -604,13 +611,23 @@
                         changeEmoji = "📉";
                     }
 
+                    const priceText = typeof stock.current_price === "number"
+                        ? `$${stock.current_price.toFixed(2)}`
+                        : "가격 조회 실패";
+                    const previousPriceText = typeof stock.previous_price === "number"
+                        ? `전일: $${stock.previous_price.toFixed(2)}`
+                        : stock.error || "가격 데이터가 부족합니다";
+                    const changeText = typeof stock.change_percent === "number"
+                        ? `${changeEmoji} ${stock.change_percent > 0 ? '+' : ''}${stock.change_percent.toFixed(2)}%`
+                        : changeEmoji;
+
                     card.innerHTML = `
                         <div class="ticker">${formatStockLabel(stock.symbol)}</div>
-                        <div class="price">$${stock.current_price.toFixed(2)}</div>
+                        <div class="price ${typeof stock.current_price === "number" ? "" : "unavailable"}">${priceText}</div>
                         <div class="change ${changeClass}">
-                            ${changeEmoji} ${stock.change_percent > 0 ? '+' : ''}${stock.change_percent.toFixed(2)}%
+                            ${changeText}
                         </div>
-                        <div class="previous-price">전일: $${stock.previous_price.toFixed(2)}</div>
+                        <div class="previous-price">${previousPriceText}</div>
                         <div class="prediction" id="prediction-${stock.symbol}">
                             <div class="prediction-title">AI 다음 거래일 예측</div>
                             <div class="prediction-result">계산 중...</div>

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 from dataclasses import asdict, dataclass
 from typing import Iterable, Sequence
 
@@ -24,6 +25,7 @@ except Exception:  # pragma: no cover - optional dependency
 try:
     import mlflow
     import mlflow.sklearn
+    from mlflow.models import infer_signature
 except Exception:  # pragma: no cover - optional dependency
     mlflow = None
 
@@ -80,11 +82,13 @@ def _log_with_mlflow(
     test_frame: pd.DataFrame,
     result: TrainingResult,
 ) -> None:
-    if mlflow is None:
+    if mlflow is None or os.getenv("DISABLE_MLFLOW") == "1":
         return
 
     mlflow.set_tracking_uri(config.MLFLOW_TRACKING_URI)
     mlflow.set_experiment(config.MLFLOW_EXPERIMENT_NAME)
+    input_example = test_frame[FEATURE_COLUMNS].head(1)
+    signature = infer_signature(input_example, estimator.predict(input_example))
 
     with mlflow.start_run(run_name=model_name):
         mlflow.log_param("model_name", model_name)
@@ -99,6 +103,8 @@ def _log_with_mlflow(
             estimator,
             artifact_path="model",
             registered_model_name=config.MODEL_REGISTRY_NAME,
+            input_example=input_example,
+            signature=signature,
         )
 
 
@@ -149,7 +155,11 @@ def train_from_histories(
     return result
 
 
-def train_from_symbols(symbols: Iterable[str], period: str = "2y", model_name: str = "logistic") -> TrainingResult:
+def train_from_symbols(
+    symbols: Iterable[str],
+    period: str = "2y",
+    model_name: str = "logistic",
+) -> TrainingResult:
     histories = [fetch_history(symbol, period=period) for symbol in symbols]
     return train_from_histories(histories, model_name=model_name)
 
@@ -178,7 +188,11 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    result = train_from_symbols(args.symbols, period=args.period, model_name=args.model)
+    result = train_from_symbols(
+        args.symbols,
+        period=args.period,
+        model_name=args.model,
+    )
     print(asdict(result))
 
 

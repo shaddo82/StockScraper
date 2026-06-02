@@ -164,6 +164,34 @@ class TestGetStockList:
         assert data["max_stocks"] == MAX_STOCKS, "max_stocks이 일치해야 함"
 
 
+# ============ 4-1. API: GET /api/stocks 카드 데이터 테스트 ============
+
+class TestGetStocks:
+    """GET /api/stocks 엔드포인트 테스트"""
+
+    @patch("main.load_stocks")
+    @patch("main.yf.Ticker")
+    def test_stock_card_remains_when_price_history_is_short(
+        self,
+        mock_ticker,
+        mock_load_stocks,
+    ):
+        """가격 데이터가 부족해도 종목 카드 데이터는 유지"""
+        mock_load_stocks.return_value = ["AAPL"]
+        mock_instance = MagicMock()
+        mock_instance.history.return_value = []
+        mock_ticker.return_value = mock_instance
+
+        response = client.get("/api/stocks")
+        data = response.json()
+
+        assert response.status_code == 200, "200 OK 반환해야 함"
+        assert data["count"] == 1, "데이터 부족 종목도 응답에 남아야 함"
+        assert data["stocks"][0]["symbol"] == "AAPL", "AAPL 카드가 유지되어야 함"
+        assert data["stocks"][0]["current_price"] is None, "가격은 None이어야 함"
+        assert "error" in data["stocks"][0], "실패 이유가 있어야 함"
+
+
 # ============ 5. API: POST /api/stocks/add 테스트 ============
 
 class TestAddStock:

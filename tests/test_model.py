@@ -8,7 +8,7 @@ import pytest
 
 from app import config
 from ml.features import build_latest_feature_frame, build_training_frame
-from ml.train import train_from_histories
+from ml.train import _make_estimator, train_from_histories
 
 
 def _make_history(rows: int = 60) -> pd.DataFrame:
@@ -25,6 +25,13 @@ def test_build_training_frame_creates_targeted_features():
     assert not frame.empty
     assert set(config.FEATURE_COLUMNS).issubset(frame.columns)
     assert config.TARGET_COLUMN in frame.columns
+
+
+def test_make_estimator_supports_four_candidates():
+    assert _make_estimator("logistic") is not None
+    assert _make_estimator("random_forest") is not None
+    assert _make_estimator("extra_trees") is not None
+    assert _make_estimator("gradient_boosting") is not None
 
 
 def test_train_and_load_model_roundtrip(tmp_path, monkeypatch):

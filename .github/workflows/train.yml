@@ -47,6 +47,12 @@ jobs:
       - name: Train random forest model
         run: python -m ml.train --model random_forest
 
+      - name: Train extra trees model
+        run: python -m ml.train --model extra_trees
+
+      - name: Train gradient boosting model
+        run: python -m ml.train --model gradient_boosting
+
       - name: Promote best model
         run: python -m ml.model_promoter --metric f1 --alias champion
 

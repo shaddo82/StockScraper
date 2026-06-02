@@ -3,6 +3,7 @@ import json
 import os
 from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
+import pandas as pd
 from main import app, load_stocks, save_stocks, is_valid_symbol, calculate_price_change, MAX_STOCKS, STOCKS_FILE, _stocks_cache
 
 # FastAPI TestClient 생성
@@ -180,6 +181,7 @@ class TestGetStocks:
         self,
         mock_download_histories,
         mock_load_stocks,
+        reset_stocks,
     ):
         """가격 데이터가 부족해도 종목 카드 데이터는 유지"""
         mock_load_stocks.return_value = ["AAPL"]
@@ -193,6 +195,36 @@ class TestGetStocks:
         assert data["stocks"][0]["symbol"] == "AAPL", "AAPL 카드가 유지되어야 함"
         assert data["stocks"][0]["current_price"] is None, "가격은 None이어야 함"
         assert "error" in data["stocks"][0], "실패 이유가 있어야 함"
+
+    @patch("main._fetch_stock_history")
+    @patch("main._download_stock_histories")
+    @patch("main.load_stocks")
+    def test_stock_card_uses_individual_fallback_when_batch_misses_symbol(
+        self,
+        mock_load_stocks,
+        mock_download_histories,
+        mock_fetch_stock_history,
+        reset_stocks,
+    ):
+        """배치 조회에서 빠진 종목은 개별 조회로 보완"""
+        index = pd.date_range("2024-01-01", periods=20, freq="D")
+        history = pd.DataFrame(
+            {
+                "Close": [100 + i for i in range(20)],
+                "Volume": [1_000_000 + i for i in range(20)],
+            },
+            index=index,
+        )
+        mock_load_stocks.return_value = ["MSFT"]
+        mock_download_histories.return_value = {}
+        mock_fetch_stock_history.return_value = history
+
+        response = client.get("/api/stocks")
+        data = response.json()
+
+        assert response.status_code == 200, "200 OK 반환해야 함"
+        assert data["stocks"][0]["symbol"] == "MSFT", "MSFT 카드가 유지되어야 함"
+        assert data["stocks"][0]["current_price"] == 119.0, "개별 조회 가격을 사용해야 함"
 
 
 # ============ 5. API: POST /api/stocks/add 테스트 ============

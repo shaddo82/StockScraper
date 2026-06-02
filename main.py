@@ -123,11 +123,23 @@ def _download_stock_histories(symbols: List[str]) -> dict:
         return {}
 
     histories = {}
-    tickers = set(data.columns.get_level_values(0))
+    first_level = set(data.columns.get_level_values(0))
+    second_level = set(data.columns.get_level_values(1))
     for symbol in symbols:
-        if symbol in tickers:
+        if symbol in first_level:
             histories[symbol] = data[symbol].dropna(how="all")
+        elif symbol in second_level:
+            histories[symbol] = data.xs(symbol, axis=1, level=1).dropna(how="all")
     return histories
+
+
+def _fetch_stock_history(symbol: str):
+    try:
+        ticker = yf.Ticker(symbol)
+        return ticker.history(period="6mo")
+    except Exception as exc:
+        print(f"⚠️  {symbol} 개별 데이터 조회 실패: {exc}")
+        return None
 
 
 def is_valid_symbol(symbol: str) -> bool:
@@ -232,6 +244,8 @@ async def get_stocks():
         for symbol in symbols:
             try:
                 data = histories.get(symbol)
+                if data is None or len(data) < 2:
+                    data = _fetch_stock_history(symbol)
 
                 if data is None or len(data) < 2:
                     stocks.append(

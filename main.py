@@ -132,6 +132,19 @@ def _predict_stock_direction(symbol: str) -> dict:
     }
 
 
+def _get_stock_prediction_or_none(symbol: str) -> dict:
+    try:
+        return _predict_stock_direction(symbol)
+    except Exception as exc:
+        return {
+            "symbol": symbol,
+            "prediction": None,
+            "direction": "예측 불가",
+            "confidence": None,
+            "error": str(exc),
+        }
+
+
 # ============ ROOT ROUTE ============
 @app.get("/")
 async def root():
@@ -159,11 +172,14 @@ async def get_stocks():
                 previous_price = data["Close"].iloc[-2]
                 change_percent = calculate_price_change(current_price, previous_price)
 
+                prediction = _get_stock_prediction_or_none(symbol)
+
                 stocks.append({
                     "symbol": symbol,
                     "current_price": float(current_price),
                     "previous_price": float(previous_price),
-                    "change_percent": float(change_percent)
+                    "change_percent": float(change_percent),
+                    "prediction": prediction,
                 })
 
             except Exception as e:

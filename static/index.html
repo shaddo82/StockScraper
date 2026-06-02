@@ -278,6 +278,37 @@
             color: #999;
         }
 
+        .prediction {
+            margin-top: 14px;
+            padding: 12px;
+            border-radius: 8px;
+            background: #f8fafc;
+            border: 1px solid #e5e7eb;
+            font-size: 0.9em;
+        }
+
+        .prediction-title {
+            color: #6b7280;
+            font-size: 0.85em;
+            margin-bottom: 6px;
+            font-weight: 600;
+        }
+
+        .prediction-result {
+            color: #374151;
+            font-weight: 700;
+        }
+
+        .prediction-result.up { color: #ef4444; }
+        .prediction-result.down { color: #3b82f6; }
+        .prediction-result.error { color: #6b7280; }
+
+        .prediction-meta {
+            color: #9ca3af;
+            font-size: 0.8em;
+            margin-top: 4px;
+        }
+
         .loading {
             text-align: center;
             color: white;
@@ -418,6 +449,75 @@
             }
         }
 
+        function renderPrediction(predictionDiv, result, resultClass, meta) {
+            predictionDiv.innerHTML = "";
+
+            const titleDiv = document.createElement("div");
+            titleDiv.className = "prediction-title";
+            titleDiv.textContent = "AI 다음 거래일 예측";
+
+            const resultDiv = document.createElement("div");
+            resultDiv.className = `prediction-result ${resultClass}`;
+            resultDiv.textContent = result;
+
+            const metaDiv = document.createElement("div");
+            metaDiv.className = "prediction-meta";
+            metaDiv.textContent = meta;
+
+            predictionDiv.appendChild(titleDiv);
+            predictionDiv.appendChild(resultDiv);
+            predictionDiv.appendChild(metaDiv);
+        }
+
+        async function loadPrediction(symbol, predictionDiv) {
+            try {
+                const response = await fetch(`${API_BASE}/stocks/predict/${symbol}`);
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.detail || "예측 실패");
+                }
+
+                const directionClass = data.prediction === 1 ? "up" : "down";
+                const confidenceText = typeof data.confidence === "number"
+                    ? `신뢰도 ${(data.confidence * 100).toFixed(1)}%`
+                    : "신뢰도 정보 없음";
+                const modelSource = data.model_info?.source || "unknown";
+
+                renderPrediction(
+                    predictionDiv,
+                    data.direction,
+                    directionClass,
+                    `${confidenceText} · ${modelSource}`
+                );
+            } catch (error) {
+                renderPrediction(predictionDiv, "예측 불가", "error", error.message);
+            }
+        }
+
+        function renderPredictionData(predictionDiv, prediction) {
+            if (!prediction || prediction.prediction === null || prediction.prediction === undefined) {
+                renderPrediction(
+                    predictionDiv,
+                    "예측 불가",
+                    "error",
+                    prediction?.error || "모델 결과 없음"
+                );
+                return;
+            }
+
+            const directionClass = prediction.prediction === 1 ? "up" : "down";
+            const confidenceText = typeof prediction.confidence === "number"
+                ? `신뢰도 ${(prediction.confidence * 100).toFixed(1)}%`
+                : "신뢰도 정보 없음";
+            const modelSource = prediction.model_info?.source || "unknown";
+            renderPrediction(
+                predictionDiv,
+                prediction.direction,
+                directionClass,
+                `${confidenceText} · ${modelSource}`
+            );
+        }
+
         async function updateStockListUI() {
             const symbols = await fetchStockList();
             stockCount.textContent = symbols.length;
@@ -511,8 +611,18 @@
                             ${changeEmoji} ${stock.change_percent > 0 ? '+' : ''}${stock.change_percent.toFixed(2)}%
                         </div>
                         <div class="previous-price">전일: $${stock.previous_price.toFixed(2)}</div>
+                        <div class="prediction" id="prediction-${stock.symbol}">
+                            <div class="prediction-title">AI 다음 거래일 예측</div>
+                            <div class="prediction-result">계산 중...</div>
+                        </div>
                     `;
                     stocksDiv.appendChild(card);
+                    const predictionDiv = card.querySelector(".prediction");
+                    if (stock.prediction) {
+                        renderPredictionData(predictionDiv, stock.prediction);
+                    } else {
+                        loadPrediction(stock.symbol, predictionDiv);
+                    }
                 });
             } catch (error) {
                 loadingDiv.style.display = "none";

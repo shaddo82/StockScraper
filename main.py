@@ -1,3 +1,4 @@
+import hashlib
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse, FileResponse
@@ -207,6 +208,42 @@ def normalize_symbol_input(raw_symbol: str) -> str:
     return cleaned.upper()
 
 
+def _canary_bucket(symbol: str) -> float:
+    digest = hashlib.sha256(symbol.upper().encode("utf-8")).digest()
+    return int.from_bytes(digest[:4], "big") / 2**32
+
+
+def _should_use_challenger(symbol: str) -> bool:
+    if not config.CANARY_ENABLED:
+        return False
+    if config.CANARY_TRAFFIC_RATIO <= 0:
+        return False
+    if config.CANARY_TRAFFIC_RATIO >= 1:
+        return True
+    return _canary_bucket(symbol) < config.CANARY_TRAFFIC_RATIO
+
+
+def _select_model_route(symbol: str) -> tuple[str, str]:
+    if _should_use_challenger(symbol):
+        return config.CHALLENGER_MODEL_URI, "challenger"
+    return config.MODEL_URI, "champion"
+
+
+def _load_model_for_symbol(symbol: str):
+    model_uri, route = _select_model_route(symbol)
+    try:
+        if route == "challenger":
+            model = load_model(model_uri=model_uri, allow_local_fallback=False)
+        else:
+            model = load_model()
+        return model, route, model_uri
+    except FileNotFoundError:
+        if route != "challenger":
+            raise
+        model = load_model()
+        return model, "champion-fallback", config.MODEL_URI
+
+
 def _predict_stock_direction_from_history(symbol: str, history) -> dict:
     try:
         if history is None or len(history) < 15:
@@ -216,7 +253,7 @@ def _predict_stock_direction_from_history(symbol: str, history) -> dict:
             )
 
         feature_frame = build_latest_feature_frame(history)
-        model = load_model()
+        model, deployment, model_uri = _load_model_for_symbol(symbol)
         prediction = int(model.predict(feature_frame)[0])
         probability = None
         if hasattr(model, "predict_proba"):
@@ -231,7 +268,9 @@ def _predict_stock_direction_from_history(symbol: str, history) -> dict:
         "prediction": prediction,
         "direction": "상승" if prediction == 1 else "하락",
         "confidence": probability,
-        "model_info": get_model_info(),
+        "deployment": deployment,
+        "model_uri": model_uri,
+        "model_info": get_model_info(model_uri),
     }
 
 
@@ -447,6 +486,17 @@ async def health_check():
 async def model_info():
     """현재 모델 로드 상태 조회"""
     return get_model_info()
+
+
+@app.get("/api/model/canary")
+async def canary_info():
+    """카나리 배포 설정 조회"""
+    return {
+        "enabled": config.CANARY_ENABLED,
+        "traffic_ratio": config.CANARY_TRAFFIC_RATIO,
+        "champion_model_uri": config.MODEL_URI,
+        "challenger_model_uri": config.CHALLENGER_MODEL_URI,
+    }
 
 
 @app.post("/api/model/reload")

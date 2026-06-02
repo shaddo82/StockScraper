@@ -11,7 +11,7 @@ import time
 import pandas as pd
 
 from app import config
-from app.model_loader import get_model_info, load_model
+from app.model_loader import get_model_info, load_model, reload_model
 from ml.features import build_latest_feature_frame
 
 try:
@@ -447,6 +447,15 @@ async def health_check():
 async def model_info():
     """현재 모델 로드 상태 조회"""
     return get_model_info()
+
+
+@app.post("/api/model/reload")
+async def reload_serving_model():
+    """현재 설정된 모델 URI에서 모델을 강제로 다시 로드"""
+    try:
+        return reload_model()
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 @app.get("/api/stocks/predict/{symbol}")

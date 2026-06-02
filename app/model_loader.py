@@ -1,6 +1,7 @@
 """Model loading helpers for serving the latest trained model."""
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 import joblib
@@ -19,6 +20,10 @@ else:
 
 _model: Any = None
 _model_info: Optional[dict[str, Any]] = None
+
+
+def _loaded_at() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
 def _load_from_mlflow() -> Any:
@@ -52,10 +57,24 @@ def load_model(force_reload: bool = False) -> Any:
                 "model_uri": config.MODEL_URI,
                 "tracking_uri": config.MLFLOW_TRACKING_URI,
                 "artifact_path": str(config.MODEL_PATH),
+                "fallback_to_local": config.MODEL_FALLBACK_TO_LOCAL,
+                "loaded_at": _loaded_at(),
             }
             return _model
         except Exception as exc:  # pragma: no cover - registry may be unavailable locally
             errors.append(str(exc))
+
+    if not config.MODEL_FALLBACK_TO_LOCAL:
+        _model = None
+        _model_info = {
+            "source": "unavailable",
+            "model_uri": config.MODEL_URI,
+            "tracking_uri": config.MLFLOW_TRACKING_URI,
+            "artifact_path": str(config.MODEL_PATH),
+            "fallback_to_local": False,
+            "errors": errors + ["Local model fallback is disabled"],
+        }
+        raise FileNotFoundError("No trained model is available")
 
     try:
         _model = _load_from_local_path()
@@ -64,7 +83,9 @@ def load_model(force_reload: bool = False) -> Any:
             "model_uri": None,
             "tracking_uri": config.MLFLOW_TRACKING_URI,
             "artifact_path": str(config.MODEL_PATH),
+            "fallback_to_local": config.MODEL_FALLBACK_TO_LOCAL,
             "fallback_errors": errors,
+            "loaded_at": _loaded_at(),
         }
         return _model
     except Exception as exc:
@@ -75,9 +96,16 @@ def load_model(force_reload: bool = False) -> Any:
             "model_uri": config.MODEL_URI,
             "tracking_uri": config.MLFLOW_TRACKING_URI,
             "artifact_path": str(config.MODEL_PATH),
+            "fallback_to_local": config.MODEL_FALLBACK_TO_LOCAL,
             "errors": errors,
         }
         raise FileNotFoundError("No trained model is available") from exc
+
+
+def reload_model() -> dict[str, Any]:
+    """Force the serving process to discard the cached model and load the current target."""
+    load_model(force_reload=True)
+    return get_model_info()
 
 
 def get_model_info() -> dict[str, Any]:
@@ -95,4 +123,5 @@ def get_model_info() -> dict[str, Any]:
         "model_uri": config.MODEL_URI,
         "tracking_uri": config.MLFLOW_TRACKING_URI,
         "artifact_path": str(config.MODEL_PATH),
+        "fallback_to_local": config.MODEL_FALLBACK_TO_LOCAL,
     }

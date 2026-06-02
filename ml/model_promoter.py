@@ -1,4 +1,4 @@
-"""Promote the best MLflow model version to the champion alias."""
+"""Promote newer MLflow model versions to challenger/champion aliases."""
 from __future__ import annotations
 
 import argparse
@@ -19,12 +19,13 @@ except Exception:  # pragma: no cover - optional dependency
 class PromotionResult:
     promoted: bool
     model_name: str
-    alias: str
+    champion_alias: str
+    challenger_alias: str
     metric_name: str
-    best_version: Optional[str]
-    best_score: Optional[float]
-    previous_version: Optional[str]
-    previous_score: Optional[float]
+    champion_version: Optional[str]
+    champion_score: Optional[float]
+    challenger_version: Optional[str]
+    challenger_score: Optional[float]
 
 
 def _get_version_metric(client: MlflowClient, version, metric_name: str) -> Optional[float]:
@@ -37,19 +38,14 @@ def _list_model_versions(client: MlflowClient, model_name: str):
     return client.search_model_versions(f"name = '{model_name}'")
 
 
-def promote_best_model(
-    model_name: str = config.MODEL_REGISTRY_NAME,
-    alias: str = "champion",
-    metric_name: str = "f1",
-    min_improvement: float = 0.0,
-) -> PromotionResult:
-    if mlflow is None or MlflowClient is None:
-        raise RuntimeError("mlflow is not installed")
+def _version_number(version) -> int:
+    try:
+        return int(version.version)
+    except Exception:
+        return -1
 
-    mlflow.set_tracking_uri(config.MLFLOW_TRACKING_URI)
-    client = MlflowClient()
-    versions = list(_list_model_versions(client, model_name))
 
+def _select_best_version(client: MlflowClient, versions, metric_name: str):
     best_version = None
     best_score = None
     for version in versions:
@@ -59,58 +55,130 @@ def promote_best_model(
         if best_score is None or score > best_score:
             best_version = version
             best_score = score
+    return best_version, best_score
 
-    previous_version = None
-    previous_score = None
+
+def promote_best_model(
+    model_name: str = config.MODEL_REGISTRY_NAME,
+    champion_alias: str = "champion",
+    challenger_alias: str = "challenger",
+    metric_name: str = "f1",
+    min_improvement: float = 0.0,
+) -> PromotionResult:
+    if mlflow is None or MlflowClient is None:
+        raise RuntimeError("mlflow is not installed")
+
+    mlflow.set_tracking_uri(config.MLFLOW_TRACKING_URI)
+    client = MlflowClient()
+    versions = sorted(
+        list(_list_model_versions(client, model_name)),
+        key=_version_number,
+    )
+
+    champion_version = None
+    champion_score = None
     try:
-        previous_version = client.get_model_version_by_alias(model_name, alias)
-        previous_score = _get_version_metric(client, previous_version, metric_name)
+        champion_version = client.get_model_version_by_alias(model_name, champion_alias)
+        champion_score = _get_version_metric(client, champion_version, metric_name)
     except Exception:
-        previous_version = None
+        champion_version = None
 
-    if best_version is None or best_score is None:
+    if champion_version is None:
+        if not versions:
+            return PromotionResult(
+                promoted=False,
+                model_name=model_name,
+                champion_alias=champion_alias,
+                challenger_alias=challenger_alias,
+                metric_name=metric_name,
+                champion_version=None,
+                champion_score=None,
+                challenger_version=None,
+                challenger_score=None,
+            )
+
+        latest_version = versions[-1]
+        latest_score = _get_version_metric(client, latest_version, metric_name)
+        client.set_registered_model_alias(
+            model_name,
+            champion_alias,
+            latest_version.version,
+        )
+        return PromotionResult(
+            promoted=True,
+            model_name=model_name,
+            champion_alias=champion_alias,
+            challenger_alias=challenger_alias,
+            metric_name=metric_name,
+            champion_version=latest_version.version,
+            champion_score=latest_score,
+            challenger_version=None,
+            challenger_score=None,
+        )
+
+    champion_version_number = _version_number(champion_version)
+    challenger_candidates = [
+        version for version in versions if _version_number(version) > champion_version_number
+    ]
+    challenger_version, challenger_score = _select_best_version(
+        client,
+        challenger_candidates,
+        metric_name,
+    )
+
+    if challenger_version is None or challenger_score is None:
         return PromotionResult(
             promoted=False,
             model_name=model_name,
-            alias=alias,
+            champion_alias=champion_alias,
+            challenger_alias=challenger_alias,
             metric_name=metric_name,
-            best_version=None,
-            best_score=None,
-            previous_version=previous_version.version if previous_version else None,
-            previous_score=previous_score,
+            champion_version=champion_version.version,
+            champion_score=champion_score,
+            challenger_version=None,
+            challenger_score=None,
         )
 
     should_promote = (
-        previous_score is None
-        or best_score >= previous_score + min_improvement
-        or previous_version is None
+        champion_score is None
+        or challenger_score >= champion_score + min_improvement
+    )
+
+    client.set_registered_model_alias(
+        model_name,
+        challenger_alias,
+        challenger_version.version,
     )
 
     if should_promote:
-        if previous_version is not None and previous_version.version != best_version.version:
-            client.set_registered_model_alias(
-                model_name,
-                "previous",
-                previous_version.version,
-            )
-        client.set_registered_model_alias(model_name, alias, best_version.version)
+        client.set_registered_model_alias(
+            model_name,
+            champion_alias,
+            challenger_version.version,
+        )
 
     return PromotionResult(
         promoted=should_promote,
         model_name=model_name,
-        alias=alias,
+        champion_alias=champion_alias,
+        challenger_alias=challenger_alias,
         metric_name=metric_name,
-        best_version=best_version.version,
-        best_score=best_score,
-        previous_version=previous_version.version if previous_version else None,
-        previous_score=previous_score,
+        champion_version=champion_version.version,
+        champion_score=champion_score,
+        challenger_version=challenger_version.version,
+        challenger_score=challenger_score,
     )
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Promote best MLflow model version")
     parser.add_argument("--model-name", default=config.MODEL_REGISTRY_NAME)
-    parser.add_argument("--alias", default="champion")
+    parser.add_argument("--alias", default="champion", help="Champion alias name")
+    parser.add_argument(
+        "--challenger-alias",
+        default="challenger",
+        help="Alias used for the newest evaluated candidate",
+    )
     parser.add_argument("--metric", default="f1")
     parser.add_argument("--min-improvement", type=float, default=0.0)
     return parser.parse_args()
@@ -120,7 +188,8 @@ def main() -> None:
     args = parse_args()
     result = promote_best_model(
         model_name=args.model_name,
-        alias=args.alias,
+        champion_alias=args.alias,
+        challenger_alias=args.challenger_alias,
         metric_name=args.metric,
         min_improvement=args.min_improvement,
     )

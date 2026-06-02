@@ -4,6 +4,7 @@ import importlib
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from app import config
 from ml.features import build_latest_feature_frame, build_training_frame
@@ -47,12 +48,41 @@ def test_train_and_load_model_roundtrip(tmp_path, monkeypatch):
     model_loader = importlib.reload(model_loader)
     monkeypatch.setattr(model_loader.config, "ARTIFACT_DIR", artifact_dir)
     monkeypatch.setattr(model_loader.config, "MODEL_PATH", model_path)
+    monkeypatch.setattr(model_loader.config, "MODEL_URI", "")
+    monkeypatch.setattr(model_loader.config, "MODEL_FALLBACK_TO_LOCAL", True)
     model_loader._model = None
     model_loader._model_info = None
 
     model = model_loader.load_model(force_reload=True)
+    assert model_loader.reload_model()["source"] == "local"
+
     latest_features = build_latest_feature_frame(_make_history())
     prediction = model.predict(latest_features)
 
     assert len(prediction) == 1
     assert prediction[0] in (0, 1)
+
+
+def test_model_loader_can_disable_local_fallback(tmp_path, monkeypatch):
+    import app.model_loader as model_loader
+
+    model_loader = importlib.reload(model_loader)
+    monkeypatch.setattr(model_loader.config, "MODEL_URI", "models:/missing@champion")
+    monkeypatch.setattr(model_loader.config, "MODEL_PATH", tmp_path / "old_model.joblib")
+    monkeypatch.setattr(model_loader.config, "MODEL_FALLBACK_TO_LOCAL", False)
+    monkeypatch.setattr(
+        model_loader,
+        "_load_from_mlflow",
+        lambda: (_ for _ in ()).throw(RuntimeError("registry unavailable")),
+    )
+    model_loader._model = None
+    model_loader._model_info = None
+
+    with pytest.raises(FileNotFoundError):
+        model_loader.load_model(force_reload=True)
+
+    info = model_loader.get_model_info()
+
+    assert info["source"] == "unavailable"
+    assert info["fallback_to_local"] is False
+    assert "Local model fallback is disabled" in info["errors"]

@@ -187,12 +187,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--symbols",
         nargs="+",
-        default=config.DEFAULT_TICKERS,
+        default=config.TRAINING_TICKERS,
         help="Ticker symbols to include in training",
     )
     parser.add_argument(
         "--period",
-        default="2y",
+        default=config.TRAINING_PERIOD,
         help="yfinance history period, e.g. 1y or 2y",
     )
     parser.add_argument(

@@ -51,6 +51,19 @@ CANARY_ENABLED = get_env_bool("CANARY_ENABLED", False)
 CANARY_TRAFFIC_RATIO = get_env_float("CANARY_TRAFFIC_RATIO", 0.1)
 
 DEFAULT_TICKERS = ["AAPL", "GOOGL", "MSFT", "NVDA", "AMZN"]
+TRAINING_TICKERS = [
+    "AAPL",
+    "GOOGL",
+    "MSFT",
+    "NVDA",
+    "AMZN",
+    "META",
+    "TSLA",
+    "JPM",
+    "JNJ",
+    "XOM",
+]
+TRAINING_PERIOD = get_env("TRAINING_PERIOD", "5y")
 FEATURE_COLUMNS = [
     "return_1d",
     "return_3d",

@@ -99,13 +99,18 @@ def _log_with_mlflow(
         mlflow.log_metric("f1", result.f1)
         mlflow.log_metric("precision", result.precision)
         mlflow.log_metric("recall", result.recall)
-        mlflow.sklearn.log_model(
-            estimator,
-            artifact_path="model",
-            registered_model_name=config.MODEL_REGISTRY_NAME,
-            input_example=input_example,
-            signature=signature,
-        )
+        try:
+            mlflow.sklearn.log_model(
+                estimator,
+                artifact_path="model",
+                registered_model_name=config.MODEL_REGISTRY_NAME,
+                input_example=input_example,
+                signature=signature,
+            )
+        except Exception as exc:
+            mlflow.set_tag("model_artifact_log_status", "failed")
+            mlflow.set_tag("model_artifact_log_error", str(exc))
+            print(f"MLflow model artifact logging failed: {exc}")
 
 
 def train_from_histories(

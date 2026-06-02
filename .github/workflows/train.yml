@@ -18,6 +18,7 @@ jobs:
 
     env:
       MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+      MLFLOW_EXPERIMENT_NAME: stock-direction-classifier-actions
       MODEL_REGISTRY_NAME: stock-direction-model
 
     steps:

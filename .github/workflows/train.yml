@@ -47,6 +47,9 @@ jobs:
       - name: Train random forest model
         run: python -m ml.train --model random_forest
 
+      - name: Promote best model
+        run: python -m ml.model_promoter --metric f1 --alias champion
+
       - name: Upload trained model artifact
         uses: actions/upload-artifact@v4
         with:

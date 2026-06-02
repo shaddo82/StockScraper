@@ -197,8 +197,10 @@ class TestGetStocks:
 
     @patch("main.load_stocks")
     @patch("main._download_stock_histories")
+    @patch("main._fetch_stock_history")
     def test_stock_card_remains_when_price_history_is_short(
         self,
+        mock_fetch_stock_history,
         mock_download_histories,
         mock_load_stocks,
         reset_stocks,
@@ -206,6 +208,7 @@ class TestGetStocks:
         """가격 데이터가 부족해도 종목 카드 데이터는 유지"""
         mock_load_stocks.return_value = ["AAPL"]
         mock_download_histories.return_value = {"AAPL": []}
+        mock_fetch_stock_history.return_value = []
 
         response = client.get("/api/stocks")
         data = response.json()

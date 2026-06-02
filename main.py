@@ -39,6 +39,12 @@ _stocks_cache = {
     "expires_at": 0.0,
     "data": None,
 }
+_company_name_cache = {}
+
+
+def clear_stocks_cache() -> None:
+    _stocks_cache["expires_at"] = 0.0
+    _stocks_cache["data"] = None
 
 # 한글/별칭 회사명 -> 티커 매핑
 COMPANY_NAME_TO_SYMBOL = {
@@ -51,12 +57,44 @@ COMPANY_NAME_TO_SYMBOL = {
     "엔비디아": "NVDA",
     "메타": "META",
     "아마존": "AMZN",
+    "코카콜라": "KO",
+    "코카 콜라": "KO",
 }
+
+SYMBOL_TO_COMPANY_NAME = {
+    symbol: company_name.replace(" ", "")
+    for company_name, symbol in COMPANY_NAME_TO_SYMBOL.items()
+}
+
+
+def get_company_name(symbol: str) -> str:
+    symbol = symbol.upper().strip()
+    if symbol in _company_name_cache:
+        return _company_name_cache[symbol]
+
+    fallback_name = SYMBOL_TO_COMPANY_NAME.get(symbol, symbol)
+    if yf.Ticker is None:
+        return fallback_name
+
+    try:
+        info = yf.Ticker(symbol).get_info()
+        name = info.get("shortName") or info.get("longName") or fallback_name
+    except Exception:
+        name = fallback_name
+
+    _company_name_cache[symbol] = name
+    return name
+
+
+def format_stock_label(symbol: str) -> str:
+    company_name = get_company_name(symbol)
+    return f"{company_name}({symbol})" if company_name and company_name != symbol else symbol
 
 
 def build_unavailable_stock(symbol: str, error: str) -> dict:
     return {
         "symbol": symbol,
+        "display_name": format_stock_label(symbol),
         "current_price": None,
         "previous_price": None,
         "change_percent": None,
@@ -88,6 +126,7 @@ def save_stocks(stocks: List[str]) -> None:
     """종목 리스트 저장"""
     with open(STOCKS_FILE, "w") as f:
         json.dump(stocks, f)
+    clear_stocks_cache()
 
 
 def calculate_price_change(current_price: float, previous_price: float) -> float:
@@ -273,6 +312,7 @@ async def get_stocks():
 
                 stocks.append({
                     "symbol": symbol,
+                    "display_name": format_stock_label(symbol),
                     "current_price": float(current_price),
                     "previous_price": float(previous_price),
                     "change_percent": float(change_percent),
@@ -306,6 +346,10 @@ async def get_stock_list():
         symbols = load_stocks()
         return {
             "symbols": symbols,
+            "stocks": [
+                {"symbol": symbol, "display_name": format_stock_label(symbol)}
+                for symbol in symbols
+            ],
             "count": len(symbols),
             "max_stocks": MAX_STOCKS
         }

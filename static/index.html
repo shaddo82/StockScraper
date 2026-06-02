@@ -374,15 +374,7 @@
     <script>
         const API_BASE = "/api";
         const MAX_STOCKS = 20;
-        const STOCK_NAME_MAP = {
-            AAPL: "애플",
-            MSFT: "마이크로소프트",
-            GOOGL: "알파벳",
-            TSLA: "테슬라",
-            NVDA: "엔비디아",
-            META: "메타",
-            AMZN: "아마존"
-        };
+        const stockDisplayNames = {};
 
         const stockInput = document.getElementById("stock-input");
         const addBtn = document.getElementById("add-btn");
@@ -394,8 +386,7 @@
         maxStocks.textContent = MAX_STOCKS;
 
         function formatStockLabel(symbol) {
-            const koreanName = STOCK_NAME_MAP[symbol];
-            return koreanName ? `${koreanName}(${symbol})` : symbol;
+            return stockDisplayNames[symbol] || symbol;
         }
 
         function showMessage(message, type = "info") {
@@ -417,6 +408,11 @@
                 const response = await fetch(`${API_BASE}/stocks/list`);
                 if (!response.ok) throw new Error("리스트 조회 실패");
                 const data = await response.json();
+                if (Array.isArray(data.stocks)) {
+                    data.stocks.forEach(stock => {
+                        stockDisplayNames[stock.symbol] = stock.display_name || stock.symbol;
+                    });
+                }
                 return data.symbols || [];
             } catch (error) {
                 console.error(error);
@@ -596,6 +592,7 @@
                 }
 
                 data.stocks.forEach(stock => {
+                    stockDisplayNames[stock.symbol] = stock.display_name || stock.symbol;
                     const card = document.createElement("div");
                     card.className = "stock-card";
 

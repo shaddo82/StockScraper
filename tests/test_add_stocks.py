@@ -4,7 +4,7 @@ import os
 from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 import pandas as pd
-from main import app, load_stocks, save_stocks, is_valid_symbol, calculate_price_change, MAX_STOCKS, STOCKS_FILE, _stocks_cache
+from main import app, load_stocks, save_stocks, is_valid_symbol, calculate_price_change, normalize_symbol_input, MAX_STOCKS, STOCKS_FILE, _company_name_cache, _stocks_cache
 
 # FastAPI TestClient 생성
 client = TestClient(app)
@@ -16,6 +16,7 @@ client = TestClient(app)
 def reset_stocks():
     """각 테스트 전후로 stocks.json 초기화"""
     original_file = None
+    _company_name_cache.clear()
     _stocks_cache["data"] = None
     _stocks_cache["expires_at"] = 0.0
 
@@ -35,6 +36,7 @@ def reset_stocks():
 
     _stocks_cache["data"] = None
     _stocks_cache["expires_at"] = 0.0
+    _company_name_cache.clear()
 
 
 # ============ 1. calculate_price_change 함수 테스트 ============
@@ -101,6 +103,16 @@ class TestStocksFileOperations:
         save_stocks(test_stocks)
         loaded = load_stocks()
         assert loaded == test_stocks, "특수 문자가 포함된 종목도 저장되어야 함"
+
+    def test_save_clears_stocks_cache(self, reset_stocks):
+        """종목 저장 시 카드 조회 캐시 초기화"""
+        _stocks_cache["data"] = {"stocks": []}
+        _stocks_cache["expires_at"] = 9999999999.0
+
+        save_stocks(["AAPL", "KO"])
+
+        assert _stocks_cache["data"] is None, "캐시 데이터가 초기화되어야 함"
+        assert _stocks_cache["expires_at"] == 0.0, "캐시 만료 시간이 초기화되어야 함"
 
 
 # ============ 3. is_valid_symbol 함수 테스트 (Mock 사용) ============
@@ -169,6 +181,14 @@ class TestGetStockList:
         assert data["count"] == len(data["symbols"]), "count가 정확해야 함"
         assert data["max_stocks"] == MAX_STOCKS, "max_stocks이 일치해야 함"
 
+    def test_get_stock_list_contains_display_names(self, reset_stocks):
+        """종목 리스트가 화면 표시명을 포함"""
+        response = client.get("/api/stocks/list")
+        data = response.json()
+
+        assert "stocks" in data, "stocks 상세 목록이 있어야 함"
+        assert "display_name" in data["stocks"][0], "표시명이 있어야 함"
+
 
 # ============ 4-1. API: GET /api/stocks 카드 데이터 테스트 ============
 
@@ -224,6 +244,7 @@ class TestGetStocks:
 
         assert response.status_code == 200, "200 OK 반환해야 함"
         assert data["stocks"][0]["symbol"] == "MSFT", "MSFT 카드가 유지되어야 함"
+        assert "display_name" in data["stocks"][0], "표시명이 있어야 함"
         assert data["stocks"][0]["current_price"] == 119.0, "개별 조회 가격을 사용해야 함"
 
 
@@ -320,6 +341,11 @@ class TestAddStock:
         response = client.post("/api/stocks/add", json={"symbol": "애플"})
         assert response.status_code == 400, "기본 보유 종목은 중복으로 거부되어야 함"
         assert "이미 추가" in response.json()["detail"], "중복 메시지가 있어야 함"
+
+    def test_normalize_coca_cola_korean_name(self):
+        """코카콜라 한글 회사명 처리"""
+        assert normalize_symbol_input("코카콜라") == "KO", "코카콜라는 KO로 변환되어야 함"
+        assert normalize_symbol_input("코카 콜라") == "KO", "띄어쓰기 포함 코카콜라도 KO로 변환되어야 함"
 
     @patch("main.is_valid_symbol")
     def test_add_max_stocks_exceeded(self, mock_valid, reset_stocks):

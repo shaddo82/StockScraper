@@ -8,6 +8,8 @@ import json
 import os
 import time
 
+import pandas as pd
+
 from app import config
 from app.model_loader import get_model_info, load_model
 from ml.features import build_latest_feature_frame
@@ -93,6 +95,39 @@ def calculate_price_change(current_price: float, previous_price: float) -> float
     if previous_price == 0:
         return 0.0
     return ((current_price - previous_price) / previous_price) * 100
+
+
+def _download_stock_histories(symbols: List[str]) -> dict:
+    if not symbols or not hasattr(yf, "download"):
+        return {}
+
+    try:
+        data = yf.download(
+            tickers=" ".join(symbols),
+            period="6mo",
+            group_by="ticker",
+            progress=False,
+            threads=False,
+        )
+    except Exception as exc:
+        print(f"⚠️  yfinance batch download 실패: {exc}")
+        return {}
+
+    if data is None or len(data) == 0:
+        return {}
+
+    if len(symbols) == 1:
+        return {symbols[0]: data.dropna(how="all")}
+
+    if not isinstance(data.columns, pd.MultiIndex):
+        return {}
+
+    histories = {}
+    tickers = set(data.columns.get_level_values(0))
+    for symbol in symbols:
+        if symbol in tickers:
+            histories[symbol] = data[symbol].dropna(how="all")
+    return histories
 
 
 def is_valid_symbol(symbol: str) -> bool:
@@ -192,13 +227,13 @@ async def get_stocks():
 
         symbols = load_stocks()
         stocks = []
+        histories = _download_stock_histories(symbols)
 
         for symbol in symbols:
             try:
-                ticker = yf.Ticker(symbol)
-                data = ticker.history(period="6mo")
+                data = histories.get(symbol)
 
-                if len(data) < 2:
+                if data is None or len(data) < 2:
                     stocks.append(
                         build_unavailable_stock(
                             symbol,

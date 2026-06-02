@@ -27,6 +27,7 @@ Thumbs.db
 logs/
 mlruns/
 mlflow.db
+mlartifacts/
 ml/artifacts/
 .pytest_cache/
 .coverage

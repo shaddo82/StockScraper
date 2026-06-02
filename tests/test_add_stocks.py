@@ -175,17 +175,15 @@ class TestGetStocks:
     """GET /api/stocks 엔드포인트 테스트"""
 
     @patch("main.load_stocks")
-    @patch("main.yf.Ticker")
+    @patch("main._download_stock_histories")
     def test_stock_card_remains_when_price_history_is_short(
         self,
-        mock_ticker,
+        mock_download_histories,
         mock_load_stocks,
     ):
         """가격 데이터가 부족해도 종목 카드 데이터는 유지"""
         mock_load_stocks.return_value = ["AAPL"]
-        mock_instance = MagicMock()
-        mock_instance.history.return_value = []
-        mock_ticker.return_value = mock_instance
+        mock_download_histories.return_value = {"AAPL": []}
 
         response = client.get("/api/stocks")
         data = response.json()

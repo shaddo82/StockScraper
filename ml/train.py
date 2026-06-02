@@ -9,8 +9,6 @@ from typing import Iterable, Sequence
 import joblib
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.ensemble import ExtraTreesClassifier
-from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 from sklearn.pipeline import Pipeline
@@ -32,7 +30,7 @@ except Exception:  # pragma: no cover - optional dependency
     mlflow = None
 
 
-MODEL_CHOICES = ("logistic", "random_forest", "extra_trees", "gradient_boosting")
+MODEL_CHOICES = ("logistic", "random_forest")
 
 
 @dataclass
@@ -76,14 +74,6 @@ def _make_estimator(model_name: str) -> Pipeline | RandomForestClassifier:
             random_state=42,
             n_jobs=-1,
         )
-    if model_name == "extra_trees":
-        return ExtraTreesClassifier(
-            n_estimators=300,
-            random_state=42,
-            n_jobs=-1,
-        )
-    if model_name == "gradient_boosting":
-        return GradientBoostingClassifier(random_state=42)
     raise ValueError(f"unsupported model_name: {model_name}")
 
 

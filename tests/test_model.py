@@ -27,11 +27,9 @@ def test_build_training_frame_creates_targeted_features():
     assert config.TARGET_COLUMN in frame.columns
 
 
-def test_make_estimator_supports_four_candidates():
+def test_make_estimator_supports_two_candidates():
     assert _make_estimator("logistic") is not None
     assert _make_estimator("random_forest") is not None
-    assert _make_estimator("extra_trees") is not None
-    assert _make_estimator("gradient_boosting") is not None
 
 
 def test_train_and_load_model_roundtrip(tmp_path, monkeypatch):

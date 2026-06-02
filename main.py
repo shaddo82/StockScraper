@@ -2,10 +2,19 @@ from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse, FileResponse
 from pydantic import BaseModel
-import yfinance as yf
 from typing import List
+from types import SimpleNamespace
 import json
 import os
+
+from app import config
+from app.model_loader import get_model_info, load_model
+from ml.features import build_latest_feature_frame
+
+try:
+    import yfinance as yf
+except Exception:  # pragma: no cover - optional dependency
+    yf = SimpleNamespace(Ticker=None)
 
 app = FastAPI()
 
@@ -85,6 +94,42 @@ def normalize_symbol_input(raw_symbol: str) -> str:
             return symbol
 
     return cleaned.upper()
+
+
+def _predict_stock_direction(symbol: str) -> dict:
+    if yf.Ticker is None:
+        raise HTTPException(
+            status_code=503,
+            detail="yfinance is not installed in this environment",
+        )
+
+    try:
+        ticker = yf.Ticker(symbol)
+        history = ticker.history(period="6mo")
+        if history is None or len(history) < 15:
+            raise HTTPException(
+                status_code=400,
+                detail=f"'{symbol}' 예측에 필요한 히스토리 데이터가 부족합니다",
+            )
+
+        feature_frame = build_latest_feature_frame(history)
+        model = load_model()
+        prediction = int(model.predict(feature_frame)[0])
+        probability = None
+        if hasattr(model, "predict_proba"):
+            probabilities = model.predict_proba(feature_frame)[0]
+            if len(probabilities) > 1:
+                probability = float(probabilities[1])
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    return {
+        "symbol": symbol,
+        "prediction": prediction,
+        "direction": "상승" if prediction == 1 else "하락",
+        "confidence": probability,
+        "model_info": get_model_info(),
+    }
 
 
 # ============ ROOT ROUTE ============
@@ -233,8 +278,24 @@ async def health_check():
     """헬스 체크 엔드포인트"""
     return {
         "status": "healthy",
-        "stocks_file_exists": os.path.exists(STOCKS_FILE)
+        "stocks_file_exists": os.path.exists(STOCKS_FILE),
+        "model_file_exists": os.path.exists(config.MODEL_PATH),
     }
+
+
+@app.get("/api/model/info")
+async def model_info():
+    """현재 모델 로드 상태 조회"""
+    return get_model_info()
+
+
+@app.get("/api/stocks/predict/{symbol}")
+async def predict_stock(symbol: str):
+    """다음 거래일 상승/하락 예측 API"""
+    normalized_symbol = normalize_symbol_input(symbol)
+    if not normalized_symbol:
+        raise HTTPException(status_code=400, detail="유효하지 않은 종목 코드입니다")
+    return _predict_stock_direction(normalized_symbol)
 
 
 if __name__ == "__main__":

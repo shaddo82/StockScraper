@@ -2,8 +2,13 @@
 import json
 import os
 from typing import List, Tuple
-import yfinance as yf
 import logging
+from types import SimpleNamespace
+
+try:
+    import yfinance as yf
+except Exception:  # pragma: no cover - optional dependency
+    yf = SimpleNamespace(Ticker=None)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

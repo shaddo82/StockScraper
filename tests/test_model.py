@@ -1,0 +1,57 @@
+from __future__ import annotations
+
+import importlib
+from pathlib import Path
+
+import pandas as pd
+
+from app import config
+from ml.features import build_latest_feature_frame, build_training_frame
+from ml.train import train_from_histories
+
+
+def _make_history(rows: int = 60) -> pd.DataFrame:
+    index = pd.date_range("2024-01-01", periods=rows, freq="D")
+    close = pd.Series([100 + i * 0.8 + (i % 5) * 0.2 for i in range(rows)], index=index)
+    volume = pd.Series([1_000_000 + i * 5_000 for i in range(rows)], index=index)
+    return pd.DataFrame({"Close": close, "Volume": volume}, index=index)
+
+
+def test_build_training_frame_creates_targeted_features():
+    history = _make_history()
+    frame = build_training_frame(history)
+
+    assert not frame.empty
+    assert set(config.FEATURE_COLUMNS).issubset(frame.columns)
+    assert config.TARGET_COLUMN in frame.columns
+
+
+def test_train_and_load_model_roundtrip(tmp_path, monkeypatch):
+    artifact_dir = tmp_path / "artifacts"
+    model_path = artifact_dir / "stock_direction_model.joblib"
+    monkeypatch.setattr(config, "ARTIFACT_DIR", artifact_dir)
+    monkeypatch.setattr(config, "MODEL_PATH", model_path)
+
+    import app.model_loader as model_loader
+
+    model_loader._model = None
+    model_loader._model_info = None
+
+    result = train_from_histories([_make_history()], model_name="logistic")
+
+    assert Path(result.artifact_path).exists()
+    assert result.accuracy >= 0.0
+    assert result.f1 >= 0.0
+
+    model_loader = importlib.reload(model_loader)
+    monkeypatch.setattr(model_loader.config, "ARTIFACT_DIR", artifact_dir)
+    monkeypatch.setattr(model_loader.config, "MODEL_PATH", model_path)
+    model_loader._model = None
+    model_loader._model_info = None
+
+    model = model_loader.load_model(force_reload=True)
+    latest_features = build_latest_feature_frame(_make_history())
+    prediction = model.predict(latest_features)
+
+    assert len(prediction) == 1
+    assert prediction[0] in (0, 1)

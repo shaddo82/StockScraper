@@ -25,6 +25,9 @@ Thumbs.db
 .env.*.local
 *.log
 logs/
+mlruns/
+mlflow.db
+ml/artifacts/
 .pytest_cache/
 .coverage
 htmlcov/
@@ -33,3 +36,4 @@ htmlcov/
 *.swo
 *~
 .AppleDS_Store
+AGENTS.md

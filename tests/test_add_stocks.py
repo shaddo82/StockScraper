@@ -3,7 +3,7 @@ import json
 import os
 from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
-from main import app, load_stocks, save_stocks, is_valid_symbol, calculate_price_change, MAX_STOCKS, STOCKS_FILE
+from main import app, load_stocks, save_stocks, is_valid_symbol, calculate_price_change, MAX_STOCKS, STOCKS_FILE, _stocks_cache
 
 # FastAPI TestClient 생성
 client = TestClient(app)
@@ -15,6 +15,8 @@ client = TestClient(app)
 def reset_stocks():
     """각 테스트 전후로 stocks.json 초기화"""
     original_file = None
+    _stocks_cache["data"] = None
+    _stocks_cache["expires_at"] = 0.0
 
     # 원본 파일 백업
     if os.path.exists(STOCKS_FILE):
@@ -29,6 +31,9 @@ def reset_stocks():
             json.dump(original_file, f)
     elif os.path.exists(STOCKS_FILE):
         os.remove(STOCKS_FILE)
+
+    _stocks_cache["data"] = None
+    _stocks_cache["expires_at"] = 0.0
 
 
 # ============ 1. calculate_price_change 함수 테스트 ============

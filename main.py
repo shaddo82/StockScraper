@@ -6,6 +6,7 @@ from typing import List
 from types import SimpleNamespace
 import json
 import os
+import time
 
 from app import config
 from app.model_loader import get_model_info, load_model
@@ -29,6 +30,13 @@ DEFAULT_STOCKS = ["AAPL", "GOOGL", "MSFT"]
 
 # 최대 종목 개수
 MAX_STOCKS = 20
+
+# yfinance는 무료 API라 Render에서 짧은 시간에 반복 호출하면 rate limit이 자주 발생합니다.
+STOCKS_CACHE_TTL_SECONDS = 60
+_stocks_cache = {
+    "expires_at": 0.0,
+    "data": None,
+}
 
 # 한글/별칭 회사명 -> 티커 매핑
 COMPANY_NAME_TO_SYMBOL = {
@@ -113,16 +121,8 @@ def normalize_symbol_input(raw_symbol: str) -> str:
     return cleaned.upper()
 
 
-def _predict_stock_direction(symbol: str) -> dict:
-    if yf.Ticker is None:
-        raise HTTPException(
-            status_code=503,
-            detail="yfinance is not installed in this environment",
-        )
-
+def _predict_stock_direction_from_history(symbol: str, history) -> dict:
     try:
-        ticker = yf.Ticker(symbol)
-        history = ticker.history(period="6mo")
         if history is None or len(history) < 15:
             raise HTTPException(
                 status_code=400,
@@ -147,6 +147,18 @@ def _predict_stock_direction(symbol: str) -> dict:
         "confidence": probability,
         "model_info": get_model_info(),
     }
+
+
+def _predict_stock_direction(symbol: str) -> dict:
+    if yf.Ticker is None:
+        raise HTTPException(
+            status_code=503,
+            detail="yfinance is not installed in this environment",
+        )
+
+    ticker = yf.Ticker(symbol)
+    history = ticker.history(period="6mo")
+    return _predict_stock_direction_from_history(symbol, history)
 
 
 def _get_stock_prediction_or_none(symbol: str) -> dict:
@@ -174,13 +186,17 @@ async def root():
 async def get_stocks():
     """주식 데이터 조회 API"""
     try:
+        cached_data = _stocks_cache["data"]
+        if cached_data is not None and time.time() < _stocks_cache["expires_at"]:
+            return cached_data
+
         symbols = load_stocks()
         stocks = []
 
         for symbol in symbols:
             try:
                 ticker = yf.Ticker(symbol)
-                data = ticker.history(period="5d")
+                data = ticker.history(period="6mo")
 
                 if len(data) < 2:
                     stocks.append(
@@ -195,7 +211,16 @@ async def get_stocks():
                 previous_price = data["Close"].iloc[-2]
                 change_percent = calculate_price_change(current_price, previous_price)
 
-                prediction = _get_stock_prediction_or_none(symbol)
+                try:
+                    prediction = _predict_stock_direction_from_history(symbol, data)
+                except Exception as exc:
+                    prediction = {
+                        "symbol": symbol,
+                        "prediction": None,
+                        "direction": "예측 불가",
+                        "confidence": None,
+                        "error": str(exc),
+                    }
 
                 stocks.append({
                     "symbol": symbol,
@@ -209,10 +234,13 @@ async def get_stocks():
                 print(f"⚠️  {symbol} 데이터 수집 실패: {e}")
                 stocks.append(build_unavailable_stock(symbol, str(e)))
 
-        return {
+        response = {
             "stocks": stocks,
             "count": len(stocks)
         }
+        _stocks_cache["data"] = response
+        _stocks_cache["expires_at"] = time.time() + STOCKS_CACHE_TTL_SECONDS
+        return response
 
     except Exception as e:
         print(f"❌ API 오류: {e}")

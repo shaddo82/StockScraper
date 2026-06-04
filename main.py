@@ -8,11 +8,14 @@ from types import SimpleNamespace
 import json
 import os
 import time
+import uuid
 
 import pandas as pd
 
 from app import config
+from app.feedback import read_feedback_logs, save_feedback
 from app.model_loader import get_model_info, load_model, reload_model
+from app.prediction_logger import read_prediction_logs, save_prediction_log
 from ml.features import build_latest_feature_frame
 
 try:
@@ -113,6 +116,16 @@ def build_unavailable_stock(symbol: str, error: str) -> dict:
 class StockRequest(BaseModel):
     """종목 추가 요청 모델"""
     symbol: str
+
+
+class FeedbackRequest(BaseModel):
+    prediction_id: str
+    symbol: str
+    prediction: int
+    correct_label: int
+    confidence: float | None = None
+    deployment: str
+    model_uri: str
 
 
 def load_stocks() -> List[str]:
@@ -263,7 +276,9 @@ def _predict_stock_direction_from_history(symbol: str, history) -> dict:
     except FileNotFoundError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-    return {
+    prediction_id = str(uuid.uuid4())
+    result = {
+        "prediction_id": prediction_id,
         "symbol": symbol,
         "prediction": prediction,
         "direction": "상승" if prediction == 1 else "하락",
@@ -271,6 +286,60 @@ def _predict_stock_direction_from_history(symbol: str, history) -> dict:
         "deployment": deployment,
         "model_uri": model_uri,
         "model_info": get_model_info(model_uri),
+    }
+    save_prediction_log(
+        prediction_id=prediction_id,
+        symbol=symbol,
+        prediction=prediction,
+        direction=result["direction"],
+        confidence=probability,
+        deployment=deployment,
+        model_uri=model_uri,
+    )
+    return result
+
+
+def _to_float_or_none(value: str | None) -> float | None:
+    if value in (None, ""):
+        return None
+    try:
+        return float(value)
+    except ValueError:
+        return None
+
+
+def _build_ops_status() -> dict:
+    prediction_logs = read_prediction_logs()
+    feedback_logs = read_feedback_logs()
+    low_confidence_count = 0
+    deployment_counts: dict[str, int] = {}
+
+    for row in prediction_logs:
+        confidence = _to_float_or_none(row.get("confidence"))
+        if confidence is not None and confidence < 0.65:
+            low_confidence_count += 1
+        deployment = row.get("deployment") or "unknown"
+        deployment_counts[deployment] = deployment_counts.get(deployment, 0) + 1
+
+    wrong_feedback_count = sum(
+        1
+        for row in feedback_logs
+        if row.get("prediction") != row.get("correct_label")
+    )
+
+    return {
+        "prediction_count": len(prediction_logs),
+        "feedback_count": len(feedback_logs),
+        "low_confidence_count": low_confidence_count,
+        "deployment_counts": deployment_counts,
+        "wrong_feedback_count": wrong_feedback_count,
+        "wrong_feedback_rate": (
+            wrong_feedback_count / len(feedback_logs)
+            if feedback_logs
+            else 0.0
+        ),
+        "recent_predictions": prediction_logs[-10:],
+        "recent_feedback": feedback_logs[-10:],
     }
 
 
@@ -499,6 +568,12 @@ async def canary_info():
     }
 
 
+@app.get("/api/ops/status")
+async def ops_status():
+    """운영 로그와 사용자 피드백 통계 조회"""
+    return _build_ops_status()
+
+
 @app.post("/api/model/reload")
 async def reload_serving_model():
     """현재 설정된 모델 URI에서 모델을 강제로 다시 로드"""
@@ -515,6 +590,24 @@ async def predict_stock(symbol: str):
     if not normalized_symbol:
         raise HTTPException(status_code=400, detail="유효하지 않은 종목 코드입니다")
     return _predict_stock_direction(normalized_symbol)
+
+
+@app.post("/api/predictions/feedback")
+async def prediction_feedback(payload: FeedbackRequest):
+    """사용자 피드백 저장 API"""
+    if payload.prediction not in (0, 1) or payload.correct_label not in (0, 1):
+        raise HTTPException(status_code=400, detail="prediction과 correct_label은 0 또는 1이어야 합니다")
+
+    save_feedback(
+        prediction_id=payload.prediction_id,
+        symbol=normalize_symbol_input(payload.symbol),
+        prediction=payload.prediction,
+        correct_label=payload.correct_label,
+        confidence=payload.confidence,
+        deployment=payload.deployment,
+        model_uri=payload.model_uri,
+    )
+    return {"status": "feedback saved"}
 
 
 if __name__ == "__main__":

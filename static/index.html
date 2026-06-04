@@ -314,6 +314,35 @@
             margin-top: 4px;
         }
 
+        .feedback-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .feedback-btn {
+            flex: 1;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            background: white;
+            color: #4b5563;
+            padding: 7px 8px;
+            font-size: 0.78em;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .feedback-btn:hover {
+            background: #f3f4f6;
+        }
+
+        .feedback-status {
+            color: #6b7280;
+            font-size: 0.78em;
+            margin-top: 6px;
+            min-height: 16px;
+        }
+
         .loading {
             text-align: center;
             color: white;
@@ -450,7 +479,59 @@
             }
         }
 
-        function renderPrediction(predictionDiv, result, resultClass, meta) {
+        async function sendPredictionFeedback(feedbackData, correctLabel, statusDiv) {
+            statusDiv.textContent = "저장 중...";
+            try {
+                const response = await fetch(`${API_BASE}/predictions/feedback`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        prediction_id: feedbackData.prediction_id,
+                        symbol: feedbackData.symbol,
+                        prediction: feedbackData.prediction,
+                        correct_label: correctLabel,
+                        confidence: feedbackData.confidence,
+                        deployment: feedbackData.deployment,
+                        model_uri: feedbackData.model_uri
+                    })
+                });
+                if (!response.ok) {
+                    const data = await response.json();
+                    throw new Error(data.detail || "피드백 저장 실패");
+                }
+                statusDiv.textContent = `피드백 저장 완료: 실제 ${correctLabel === 1 ? "상승" : "하락"}`;
+            } catch (error) {
+                statusDiv.textContent = error.message;
+            }
+        }
+
+        function appendFeedbackControls(predictionDiv, feedbackData) {
+            if (!feedbackData || !feedbackData.prediction_id) return;
+
+            const actionsDiv = document.createElement("div");
+            actionsDiv.className = "feedback-actions";
+
+            const upButton = document.createElement("button");
+            upButton.className = "feedback-btn";
+            upButton.textContent = "실제 상승";
+
+            const downButton = document.createElement("button");
+            downButton.className = "feedback-btn";
+            downButton.textContent = "실제 하락";
+
+            const statusDiv = document.createElement("div");
+            statusDiv.className = "feedback-status";
+
+            upButton.addEventListener("click", () => sendPredictionFeedback(feedbackData, 1, statusDiv));
+            downButton.addEventListener("click", () => sendPredictionFeedback(feedbackData, 0, statusDiv));
+
+            actionsDiv.appendChild(upButton);
+            actionsDiv.appendChild(downButton);
+            predictionDiv.appendChild(actionsDiv);
+            predictionDiv.appendChild(statusDiv);
+        }
+
+        function renderPrediction(predictionDiv, result, resultClass, meta, feedbackData = null) {
             predictionDiv.innerHTML = "";
 
             const titleDiv = document.createElement("div");
@@ -468,6 +549,7 @@
             predictionDiv.appendChild(titleDiv);
             predictionDiv.appendChild(resultDiv);
             predictionDiv.appendChild(metaDiv);
+            appendFeedbackControls(predictionDiv, feedbackData);
         }
 
         async function loadPrediction(symbol, predictionDiv) {
@@ -488,7 +570,8 @@
                     predictionDiv,
                     data.direction,
                     directionClass,
-                    `${confidenceText} · ${modelSource}`
+                    `${confidenceText} · ${modelSource}`,
+                    data
                 );
             } catch (error) {
                 renderPrediction(predictionDiv, "예측 불가", "error", error.message);
@@ -515,7 +598,8 @@
                 predictionDiv,
                 prediction.direction,
                 directionClass,
-                `${confidenceText} · ${modelSource}`
+                `${confidenceText} · ${modelSource}`,
+                prediction
             );
         }
 

@@ -16,6 +16,7 @@ from app import config
 from app.feedback import read_feedback_logs, save_feedback
 from app.model_loader import get_model_info, load_model, reload_model
 from app.prediction_logger import read_prediction_logs, save_prediction_log
+from app.verification import read_verification_logs, save_verification_log
 from ml.features import build_latest_feature_frame
 
 try:
@@ -276,10 +277,14 @@ def _predict_stock_direction_from_history(symbol: str, history) -> dict:
     except FileNotFoundError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
+    reference_time = str(pd.Timestamp(history.index[-1]).date())
+    reference_close = float(history["Close"].iloc[-1])
     prediction_id = str(uuid.uuid4())
     result = {
         "prediction_id": prediction_id,
         "symbol": symbol,
+        "reference_time": reference_time,
+        "reference_close": reference_close,
         "prediction": prediction,
         "direction": "상승" if prediction == 1 else "하락",
         "confidence": probability,
@@ -290,6 +295,8 @@ def _predict_stock_direction_from_history(symbol: str, history) -> dict:
     save_prediction_log(
         prediction_id=prediction_id,
         symbol=symbol,
+        reference_time=reference_time,
+        reference_close=reference_close,
         prediction=prediction,
         direction=result["direction"],
         confidence=probability,
@@ -308,17 +315,54 @@ def _to_float_or_none(value: str | None) -> float | None:
         return None
 
 
+def _to_int_or_none(value: str | int | None) -> int | None:
+    if value in (None, ""):
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        return None
+
+
+def _empty_deployment_metric() -> dict:
+    return {
+        "prediction_count": 0,
+        "avg_confidence": None,
+        "low_confidence_count": 0,
+        "feedback_count": 0,
+        "wrong_feedback_count": 0,
+        "wrong_feedback_rate": 0.0,
+        "verification_count": 0,
+        "verified_correct_count": 0,
+        "verified_accuracy": None,
+    }
+
+
+def _get_deployment_metric(metrics: dict[str, dict], deployment: str) -> dict:
+    if deployment not in metrics:
+        metrics[deployment] = _empty_deployment_metric()
+    return metrics[deployment]
+
+
 def _build_ops_status() -> dict:
     prediction_logs = read_prediction_logs()
     feedback_logs = read_feedback_logs()
+    verification_logs = read_verification_logs()
     low_confidence_count = 0
     deployment_counts: dict[str, int] = {}
+    deployment_metrics: dict[str, dict] = {}
+    confidence_sums: dict[str, float] = {}
 
     for row in prediction_logs:
         confidence = _to_float_or_none(row.get("confidence"))
+        deployment = row.get("deployment") or "unknown"
+        metric = _get_deployment_metric(deployment_metrics, deployment)
+        metric["prediction_count"] += 1
         if confidence is not None and confidence < 0.65:
             low_confidence_count += 1
-        deployment = row.get("deployment") or "unknown"
+            metric["low_confidence_count"] += 1
+        if confidence is not None:
+            confidence_sums[deployment] = confidence_sums.get(deployment, 0.0) + confidence
         deployment_counts[deployment] = deployment_counts.get(deployment, 0) + 1
 
     wrong_feedback_count = sum(
@@ -326,12 +370,35 @@ def _build_ops_status() -> dict:
         for row in feedback_logs
         if row.get("prediction") != row.get("correct_label")
     )
+    for row in feedback_logs:
+        deployment = row.get("deployment") or "unknown"
+        metric = _get_deployment_metric(deployment_metrics, deployment)
+        metric["feedback_count"] += 1
+        if row.get("prediction") != row.get("correct_label"):
+            metric["wrong_feedback_count"] += 1
+
+    for row in verification_logs:
+        deployment = row.get("deployment") or "unknown"
+        metric = _get_deployment_metric(deployment_metrics, deployment)
+        metric["verification_count"] += 1
+        if str(row.get("correct")) in ("1", "true", "True"):
+            metric["verified_correct_count"] += 1
+
+    for deployment, metric in deployment_metrics.items():
+        if metric["prediction_count"]:
+            metric["avg_confidence"] = confidence_sums.get(deployment, 0.0) / metric["prediction_count"]
+        if metric["feedback_count"]:
+            metric["wrong_feedback_rate"] = metric["wrong_feedback_count"] / metric["feedback_count"]
+        if metric["verification_count"]:
+            metric["verified_accuracy"] = metric["verified_correct_count"] / metric["verification_count"]
 
     return {
         "prediction_count": len(prediction_logs),
         "feedback_count": len(feedback_logs),
+        "verification_count": len(verification_logs),
         "low_confidence_count": low_confidence_count,
         "deployment_counts": deployment_counts,
+        "deployment_metrics": deployment_metrics,
         "wrong_feedback_count": wrong_feedback_count,
         "wrong_feedback_rate": (
             wrong_feedback_count / len(feedback_logs)
@@ -340,7 +407,63 @@ def _build_ops_status() -> dict:
         ),
         "recent_predictions": prediction_logs[-10:],
         "recent_feedback": feedback_logs[-10:],
+        "recent_verifications": verification_logs[-10:],
     }
+
+
+def _find_prediction_log(prediction_id: str) -> dict[str, str]:
+    for row in reversed(read_prediction_logs()):
+        if row.get("prediction_id") == prediction_id:
+            return row
+    raise HTTPException(status_code=404, detail="prediction_id에 해당하는 예측 로그가 없습니다")
+
+
+def _first_close_after(symbol: str, reference_time: str) -> tuple[str, float]:
+    if yf.Ticker is None:
+        raise HTTPException(status_code=503, detail="yfinance is not installed in this environment")
+
+    reference_date = pd.Timestamp(reference_time).date()
+    history = yf.Ticker(symbol).history(period="10d")
+    if history is None or history.empty or "Close" not in history.columns:
+        raise HTTPException(status_code=400, detail="검증할 실제 가격 데이터가 없습니다")
+
+    close_history = history.dropna(subset=["Close"])
+    for index, row in close_history.iterrows():
+        actual_date = pd.Timestamp(index).date()
+        if actual_date > reference_date:
+            return str(actual_date), float(row["Close"])
+
+    raise HTTPException(status_code=400, detail="아직 다음 거래일 가격 데이터가 없습니다")
+
+
+def _verify_prediction_result(prediction_id: str) -> dict:
+    prediction_log = _find_prediction_log(prediction_id)
+    reference_time = prediction_log.get("reference_time")
+    reference_close = _to_float_or_none(prediction_log.get("reference_close"))
+    prediction = _to_int_or_none(prediction_log.get("prediction"))
+    symbol = normalize_symbol_input(prediction_log.get("symbol", ""))
+
+    if not reference_time or reference_close is None or prediction is None or not symbol:
+        raise HTTPException(status_code=400, detail="검증에 필요한 예측 로그 필드가 부족합니다")
+
+    actual_time, actual_close = _first_close_after(symbol, reference_time)
+    actual_label = 1 if actual_close > reference_close else 0
+    correct = prediction == actual_label
+    result = {
+        "prediction_id": prediction_id,
+        "symbol": symbol,
+        "prediction": prediction,
+        "actual_label": actual_label,
+        "correct": correct,
+        "reference_time": reference_time,
+        "reference_close": reference_close,
+        "actual_time": actual_time,
+        "actual_close": actual_close,
+        "deployment": prediction_log.get("deployment") or "unknown",
+        "model_uri": prediction_log.get("model_uri") or "",
+    }
+    save_verification_log(**result)
+    return result
 
 
 def _predict_stock_direction(symbol: str) -> dict:
@@ -608,6 +731,12 @@ async def prediction_feedback(payload: FeedbackRequest):
         model_uri=payload.model_uri,
     )
     return {"status": "feedback saved"}
+
+
+@app.post("/api/predictions/verify/{prediction_id}")
+async def verify_prediction(prediction_id: str):
+    """실제 다음 거래일 종가로 예측 결과를 자동 검증"""
+    return _verify_prediction_result(prediction_id)
 
 
 if __name__ == "__main__":

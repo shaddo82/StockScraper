@@ -7,10 +7,14 @@ from pathlib import Path
 
 import pandas as pd
 import streamlit as st
+from dotenv import load_dotenv
 
 
 PREDICTION_LOG_PATH = Path("logs/predictions.csv")
 FEEDBACK_LOG_PATH = Path("logs/feedback.csv")
+VERIFICATION_LOG_PATH = Path("logs/verifications.csv")
+
+load_dotenv()
 
 
 def _load_local_csv(path: Path) -> pd.DataFrame:
@@ -38,18 +42,26 @@ def _load_sheet(worksheet_name: str) -> pd.DataFrame:
     return pd.DataFrame(worksheet.get_all_records())
 
 
-def load_logs() -> tuple[pd.DataFrame, pd.DataFrame, str]:
+def _load_sheet_or_empty(worksheet_name: str) -> pd.DataFrame:
     try:
-        prediction_df = _load_sheet("prediction_logs")
-        feedback_df = _load_sheet("feedback_logs")
-        if not prediction_df.empty or not feedback_df.empty:
-            return prediction_df, feedback_df, "Google Sheets"
+        return _load_sheet(worksheet_name)
     except Exception as exc:
-        st.warning(f"Google Sheets 로그를 읽지 못했습니다: {exc}")
+        st.warning(f"{worksheet_name} 시트를 읽지 못했습니다: {exc}")
+        return pd.DataFrame()
+
+
+def load_logs() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, str]:
+    if os.getenv("GOOGLE_SHEET_NAME") and os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON"):
+        prediction_df = _load_sheet_or_empty("prediction_logs")
+        feedback_df = _load_sheet_or_empty("feedback_logs")
+        verification_df = _load_sheet_or_empty("verification_logs")
+        if not prediction_df.empty or not feedback_df.empty or not verification_df.empty:
+            return prediction_df, feedback_df, verification_df, "Google Sheets"
 
     return (
         _load_local_csv(PREDICTION_LOG_PATH),
         _load_local_csv(FEEDBACK_LOG_PATH),
+        _load_local_csv(VERIFICATION_LOG_PATH),
         "local CSV",
     )
 
@@ -83,6 +95,12 @@ def render_prediction_metrics(prediction_df: pd.DataFrame) -> None:
     st.subheader("Serving Model Count")
     if "deployment" in prediction_df.columns:
         st.bar_chart(prediction_df["deployment"].value_counts())
+        deployment_summary = (
+            prediction_df.groupby("deployment")["confidence"]
+            .agg(prediction_count="count", avg_confidence="mean")
+            .reset_index()
+        )
+        st.dataframe(deployment_summary, use_container_width=True)
 
     st.subheader("Recent Predictions")
     st.dataframe(prediction_df.tail(20), use_container_width=True)
@@ -117,11 +135,41 @@ def render_feedback_metrics(feedback_df: pd.DataFrame) -> None:
         st.dataframe(wrong_df.tail(20), use_container_width=True)
 
 
+def render_verification_metrics(verification_df: pd.DataFrame) -> None:
+    st.subheader("Actual Outcome Verification")
+    col1, col2 = st.columns(2)
+    col1.metric("Verification Count", len(verification_df))
+
+    if verification_df.empty:
+        col2.metric("Verified Accuracy", "-")
+        st.info("아직 자동 검증 로그가 없습니다.")
+        return
+
+    verification_df["correct"] = pd.to_numeric(
+        verification_df.get("correct"),
+        errors="coerce",
+    )
+    col2.metric("Verified Accuracy", f"{verification_df['correct'].mean():.2%}")
+
+    if "deployment" in verification_df.columns:
+        st.subheader("Verified Accuracy by Deployment")
+        deployment_summary = (
+            verification_df.groupby("deployment")["correct"]
+            .agg(verification_count="count", verified_accuracy="mean")
+            .reset_index()
+        )
+        st.dataframe(deployment_summary, use_container_width=True)
+
+    st.subheader("Recent Verifications")
+    st.dataframe(verification_df.tail(20), use_container_width=True)
+
+
 st.set_page_config(page_title="Stock MLOps Monitoring", layout="wide")
 st.title("Stock MLOps Monitoring")
 
-prediction_logs, feedback_logs, source = load_logs()
+prediction_logs, feedback_logs, verification_logs, source = load_logs()
 st.caption(f"Log source: {source}")
 
 render_prediction_metrics(prediction_logs)
 render_feedback_metrics(feedback_logs)
+render_verification_metrics(verification_logs)

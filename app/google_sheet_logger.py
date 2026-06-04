@@ -8,6 +8,7 @@ from typing import Any
 
 PREDICTION_WORKSHEET = "prediction_logs"
 FEEDBACK_WORKSHEET = "feedback_logs"
+VERIFICATION_WORKSHEET = "verification_logs"
 
 _spreadsheet = None
 

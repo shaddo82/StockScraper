@@ -14,6 +14,8 @@ PREDICTION_COLUMNS = [
     "time",
     "prediction_id",
     "symbol",
+    "reference_time",
+    "reference_close",
     "prediction",
     "direction",
     "confidence",
@@ -31,6 +33,18 @@ def _format_confidence(confidence: float | None) -> str:
 def _append_csv(path: Path, columns: list[str], row: list[Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     is_new = not path.exists()
+    if not is_new:
+        with path.open("r", newline="", encoding="utf-8") as file:
+            reader = csv.DictReader(file)
+            existing_columns = reader.fieldnames or []
+            existing_rows = list(reader)
+        if existing_columns != columns:
+            with path.open("w", newline="", encoding="utf-8") as file:
+                writer = csv.DictWriter(file, fieldnames=columns)
+                writer.writeheader()
+                for existing_row in existing_rows:
+                    writer.writerow({column: existing_row.get(column, "") for column in columns})
+
     with path.open("a", newline="", encoding="utf-8") as file:
         writer = csv.writer(file)
         if is_new:
@@ -42,6 +56,8 @@ def save_prediction_log(
     *,
     prediction_id: str,
     symbol: str,
+    reference_time: str,
+    reference_close: float,
     prediction: int,
     direction: str,
     confidence: float | None,
@@ -52,6 +68,8 @@ def save_prediction_log(
         datetime.now().isoformat(timespec="seconds"),
         prediction_id,
         symbol,
+        reference_time,
+        f"{float(reference_close):.4f}",
         prediction,
         direction,
         _format_confidence(confidence),

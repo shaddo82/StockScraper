@@ -41,6 +41,23 @@ jobs:
           DISABLE_MLFLOW: "1"
         run: pytest
 
+      - name: Check MLflow tracking server
+        run: |
+          if [ -z "$MLFLOW_TRACKING_URI" ]; then
+            echo "MLFLOW tracking URI is not configured. Training will skip MLflow logging."
+            echo "DISABLE_MLFLOW=1" >> "$GITHUB_ENV"
+            echo "SKIP_MODEL_PROMOTION=1" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          if curl --fail --silent --show-error --max-time 10 "${MLFLOW_TRACKING_URI%/}/health" > /dev/null; then
+            echo "MLflow tracking server is reachable."
+          else
+            echo "MLflow tracking server is unavailable. Training will skip MLflow logging."
+            echo "DISABLE_MLFLOW=1" >> "$GITHUB_ENV"
+            echo "SKIP_MODEL_PROMOTION=1" >> "$GITHUB_ENV"
+          fi
+
       - name: Train logistic model
         run: python -m ml.train --model logistic
 
@@ -48,6 +65,7 @@ jobs:
         run: python -m ml.train --model random_forest
 
       - name: Promote best model
+        if: env.SKIP_MODEL_PROMOTION != '1'
         run: python -m ml.model_promoter --metric f1 --alias champion --promote-champion
 
       - name: Upload trained model artifact

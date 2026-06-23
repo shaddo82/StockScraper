@@ -28,7 +28,8 @@ logs/
 mlruns/
 mlflow.db
 mlartifacts/
-ml/artifacts/
+ml/artifacts/*
+!ml/artifacts/stock_direction_model.joblib
 .pytest_cache/
 .coverage
 htmlcov/

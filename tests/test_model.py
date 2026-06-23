@@ -32,6 +32,10 @@ def test_make_estimator_supports_two_candidates():
     assert _make_estimator("random_forest") is not None
 
 
+def test_default_model_artifact_exists_for_deployment():
+    assert config.MODEL_PATH.exists()
+
+
 def test_train_and_load_model_roundtrip(tmp_path, monkeypatch):
     artifact_dir = tmp_path / "artifacts"
     model_path = artifact_dir / "stock_direction_model.joblib"

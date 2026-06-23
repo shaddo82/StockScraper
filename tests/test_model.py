@@ -91,3 +91,30 @@ def test_model_loader_can_disable_local_fallback(tmp_path, monkeypatch):
     assert info["source"] == "unavailable"
     assert info["fallback_to_local"] is False
     assert "Local model fallback is disabled" in info["errors"]
+
+
+def test_model_loader_falls_back_to_local_when_registry_unavailable(monkeypatch):
+    import app.model_loader as model_loader
+
+    model_loader = importlib.reload(model_loader)
+    local_model = object()
+    monkeypatch.setattr(model_loader.config, "MODEL_URI", "models:/missing@champion")
+    monkeypatch.setattr(model_loader.config, "MODEL_FALLBACK_TO_LOCAL", True)
+    monkeypatch.setattr(
+        model_loader,
+        "_load_from_mlflow",
+        lambda model_uri: (_ for _ in ()).throw(RuntimeError("registry unavailable")),
+    )
+    monkeypatch.setattr(model_loader, "_load_from_local_path", lambda: local_model)
+    model_loader._model = None
+    model_loader._model_info = None
+    model_loader._model_cache = {}
+    model_loader._model_info_cache = {}
+
+    model = model_loader.load_model(force_reload=True)
+    info = model_loader.get_model_info()
+
+    assert model is local_model
+    assert info["source"] == "local"
+    assert info["fallback_to_local"] is True
+    assert "registry unavailable" in info["fallback_errors"]

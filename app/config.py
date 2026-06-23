@@ -45,7 +45,7 @@ CHALLENGER_MODEL_URI = get_env(
 )
 MODEL_FALLBACK_TO_LOCAL = get_env_bool(
     "MODEL_FALLBACK_TO_LOCAL",
-    not bool(os.getenv("MODEL_URI") or os.getenv("MLFLOW_TRACKING_URI")),
+    True,
 )
 CANARY_ENABLED = get_env_bool("CANARY_ENABLED", False)
 CANARY_TRAFFIC_RATIO = get_env_float("CANARY_TRAFFIC_RATIO", 0.1)
